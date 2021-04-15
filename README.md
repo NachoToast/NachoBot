@@ -1,0 +1,2 @@
+# NachoBot
+NachoBot Discord bot.
