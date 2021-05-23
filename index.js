@@ -1,95 +1,91 @@
-// Devmode
-const devmode = false;
-// Dependency declaring
-const cron = require('node-cron');
-const Discord = require('discord.js');
-const client = new Discord.Client();
+const { Client, Intents, Collection } = require('discord.js');
+const client = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES] });
+const config = require ('./config.json');
+const boot_time = new Date().getTime();
+const slash_commands = require('./slash_commands.json');
 const fs = require('fs');
-// Declaring config stuff, like API tokens
-const config = require('./config.json');
-// Defining command directories.
-client.commands = new Discord.Collection();
-const roleClaim = require('./commands/reactrole/role-claim');
-const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
-for (const file of commandFiles){
-    const command = require(`./commands/${file}`);
-    client.commands.set(command.name, command);
-}
-// Defining prefixes
-const prefixes = ['nachobot', 'nacho','nachiii', 'nachi','neko'];
+const reactpool = ['🥳', '💜', '<a:ratJAM:797566731748638741>', '<a:headbang:604895069161521175>', '<a:angeryping:555295819314757632>', '<:respekt:598110434893234186>', '<:obama:610371105219280896>', '<:PogO:791539032735088641>', '<:PogU:764740680525676544>'];
 
-client.once('ready', () => {
-    console.log('NachoBot is up :D');
-    if (devmode) return;
-    //statusupdate();
-    cron.schedule('* */5 * * *', () => statusupdate()); // Call randomize status every 5 minutes.
-    minecraftupdateinit(client);
-    cron.schedule('0 0 12 * * 3', () => { // Wednesday 12pm
-        wednesday();
-    }, {
-        scheduled: true,
-        timezone: "Pacific/Auckland"
-    });
-    roleClaim(client);
+client.commands = new Collection();
+const command_folders = fs.readdirSync('./commands');
+for (const folder of command_folders) {
+    const command_files = fs.readdirSync(`./commands/${folder}`).filter(file => file.endsWith('.js'));
+    for (const file of command_files) {
+        const command = require(`./commands/${folder}/${file}`);
+        client.commands.set(command.name, command);
+    }
+}
+
+client.on('ready', () => {
+    const boot_finish = new Date();
+    console.log(`---\n${boot_finish.toLocaleString()}`);
+    console.log(`Logged in as ${client.user.tag}!`);
+    console.log(`Boot time: ${((boot_finish.getTime() - boot_time) / 1000 ).toFixed(2)}s`);
 });
-
-async function wednesday() {
-    const channel = await client.channels.fetch('413218560882507786'); // Actual
-    //const channel = await client.channels.fetch('795106209946402841'); // Testing
-    channel.send('https://i.kym-cdn.com/photos/images/newsfeed/001/091/264/665.jpg');
-}
-
-async function minecraftupdateinit() {
-    // Minecraft Server Checking
-    const coolguy = await client.users.fetch('240312568273436674');
-    cron.schedule(`*/${config.server_interval} * * * * *`, () => client.commands.get('minecraft').execute(client, coolguy)) // Update minecraft server status every X seconds.
-    client.commands.get('minecraft').execute(client, coolguy);
-
-}
-
-function statusupdate() {
-    const statuses = [`Minecraft in ${client.guilds.cache.size} servers`, `with your heart`, `on ${client.guilds.cache.size} servers`, `with neko cat`, `crash the Minecraft server`, `piano`, `anything besides Destiny 2`]
-    client.user.setActivity(statuses[Math.floor(Math.random() * statuses.length)], {type: 'PLAYING'});
-}
 
 client.on('message', async message => {
-    if (devmode && message.guild.id != 795106209946402837) return;
-    if(message.author.bot) return; // Don't go ahead if its a bot's message.
-    // Commands that don't look for prefixes.
-    if (message.channel.id == 814404402365857792) {message.react("👍"); return}
-    if (message.channel.id == 814404402365857792) {message.react("👎"); return}
-    if ((message.content.toLowerCase().startsWith("did") || message.content.toLowerCase().startsWith("doin"))
-    &&
-    (message.content.toLowerCase().includes("your") || message.content.toLowerCase().includes("ur") || message.content.toLowerCase().includes("ya"))
-    &&
-    (message.content.toLowerCase().includes("mom") || message.content.toLowerCase().includes("mum") || message.content.toLowerCase().includes("mother"))) {client.commands.get('eatmyass').execute(message); return}
-    if (message.content.toLowerCase().includes("happy birthday")) {client.commands.get('birthday').execute(message); return}
-    // Command that do look for prefixes.
-    var prefix = ""
-    for (let i = 0; i < prefixes.length; i++) {
-        if (message.content.toLowerCase().startsWith(prefixes[i])) {
-            prefix = prefixes[i];
-            break;
+    if (message.author.bot) return;
+
+    if (message.mentions.members.map(e => e.nickname).filter(e => e !== null).some(e => e.toLowerCase().includes("happy birthday")) || message.content.toLowerCase().includes("happy birthday")) {
+        message.react(reactpool[Math.floor(Math.random() * reactpool.length)]);
+        return;
+    }
+
+	if (message.content.toLowerCase() === 'nachobot deploy') {
+        if (!client.application?.owner) await client.application?.fetch();
+
+        if (message.author.id !== client.application?.owner.id) {
+            message.channel.send(`You don't have the balls to do that.`);
+            return;
         }
+		await client.guilds.cache.get('795106209946402837')?.commands.set(slash_commands);
+        message.channel.send(`Deployed ${slash_commands.length} slash commands 😎`);
+	}
+
+    if (message.content.toLowerCase().startsWith('nachobot')) {
+        message.reply(`Look here, you ape-brained clown, you absolute idiot, you troglodyte of a human being. Responding to normal commands is extremely old. Discord had the brains to realize that when bots are chosing more prefixes than the average CIA employee something needed to change. Lo and behold bots now respond ***directly*** to slash commands.\nTry it, I dare you, start typing /ping or /help or *any* shitty command and allow your boomer eyes to see what comes up. Fuck you 🥰`);
     }
-    if (prefix == "") return;
-    const args = message.content.slice(prefix.length).trim().split(' ');
-    const command = args.shift().toLowerCase();
-    // Commands
-    if ((command === 'ping') || (command === 'p')) {client.commands.get('ping').execute(client, message, args); return}
-    if ((command === 'cat') || (command === 'c')) {client.commands.get('cat2').execute(message); return}
-    if (command === 'eat' && args.includes("my" && "ass")) {client.commands.get('eatass').execute(message); return}
-    if ((command === 'osu') || (command === 'o')) {client.commands.get('osu/authenticate').execute(client, message, args); return}
-    if ((command === 'dan') || (command === 'san') || (command === 'sans') || (command === 'd') || (command === 's')) {client.commands.get('danbooru/authenticate').execute(client, message, command, args, debugmode); return}
-    if ((prefix === 'neko') && (command === 'para')) {client.commands.get('danbooru/nekopara').execute(args, message); return}
-    if ((command === 'help') || (command === 'h')) {client.commands.get('help').execute(message, args, prefixes); return}
-    if ((command === 'horny') || (command === 'bonk') || (command === 'b')) {client.commands.get('horny').execute(message); return}
-    if (command == "clear" && message.author.id == "240312568273436674") {
-        if (!args[0]) args[0] = 10;
-        args[0] = parseInt(args[0]) + 1;
-        message.channel.bulkDelete(args[0])
-            .then(messages => message.channel.send(`Bulk deleted ${messages.size - 1} messages.`))
-    }
+
+    //message.reply(message.content);
 });
 
-client.login(config.discord_token) // Stay away from my token u meanie >:P
+client.on('interaction', async interaction => {
+    if (!interaction.isCommand()) return;
+    if (interaction.user.bot) {
+        interaction.reply(`No.`);
+        return;
+    }
+
+    if (interaction.commandName === 'help' && interaction?.options.length > 0) var helpmode = true;
+    else helpmode = false;
+    
+    if (helpmode) var command = client.commands.get(interaction.options[0].value);
+    else var command = client.commands.get(interaction.commandName);
+
+    try {
+        if (helpmode) await command.execute_help(client, interaction);
+        else await command.execute(client, interaction);
+    } catch (err) {
+        if (err instanceof TypeError && err.message === 'Cannot read property \'execute_help\' of undefined') {
+            interaction.reply(`This command '${interaction.options[0].value}' doesn't exist, why did you even type help for it in the first place?`, { ephemeral: true});
+            return;
+        }
+        if (err instanceof TypeError && err.message === 'Cannot read property \'execute\' of undefined') {
+            console.log(`${new Date().toLocaleString()}: Missing command requested: '${interaction.commandName}'`);
+            interaction.reply(`This command doesn't appear to exist, unlucky.`, { ephemeral: true});
+            return;
+        }
+        if (err instanceof TypeError && err.message === 'command.execute_help is not a function') {
+            console.log(`${new Date().toLocaleString()}: Missing help subcommand: ${interaction.options[0].value}`);
+            interaction.reply(`This command doesn't have a help section, enjoy the guess and check.`, { ephemeral: true});
+            return;
+        }
+        console.log(`${new Date().toLocaleString()}: Unknown error during command execution: ${interaction.commandName}.`);
+        if (interaction.options.length > 0) console.log(`Options: ${interaction.options.map(e => `\n${e.name}: ${e.value} (${e.type.toLowerCase()})`)}`)
+        console.log(err);
+        interaction.reply(`You somehow caused an error that I have never seen before, well done shitass.`, { ephemeral: true });
+    }
+})
+
+client.login(config.discord_token);
+// https://discord.com/api/oauth2/authorize?client_id=845829005805617193&permissions=8&scope=applications.commands%20bot
