@@ -31,7 +31,7 @@ client.on('message', async message => {
         return;
     }
 
-	if (message.content.toLowerCase() === 'nachobot deploy') {
+	if (message.content.toLowerCase().startsWith('nachobot deploy')) {
         if (!client.application?.owner) await client.application?.fetch();
 
         if (message.author.id !== client.application?.owner.id) {
@@ -40,10 +40,15 @@ client.on('message', async message => {
         }
 		await client.guilds.cache.get('795106209946402837')?.commands.set(slash_commands);
         message.channel.send(`Deployed ${slash_commands.length} slash commands 😎`);
+        if (message.content.toLowerCase().includes('all')) {
+            await client.application?.commands.create(slash_commands);
+            message.channel.send(`Global deploy successfull, poggers.`);
+        }
+        return;
 	}
 
     if (message.content.toLowerCase().startsWith('nachobot')) {
-        message.reply(`Look here, you ape-brained clown, you absolute idiot, you troglodyte of a human being. Responding to normal commands is extremely old. Discord had the brains to realize that when bots are chosing more prefixes than the average CIA employee something needed to change. Lo and behold bots now respond ***directly*** to slash commands.\nTry it, I dare you, start typing /ping or /help or *any* shitty command and allow your boomer eyes to see what comes up. Fuck you 🥰`);
+        message.reply(`Look here, you ape-brained clown, you absolute idiot, you troglodyte of a human being. Responding to normal commands is extremely old. Discord had the brains to realize that when bots are choosing more prefixes than the average CIA employee something needed to change. Lo and behold bots now respond ***directly*** to slash commands.\nTry it, I dare you, start typing /ping or /help or *any* shitty command and allow your boomer eyes to see what comes up. Fuck you 🥰`);
     }
 
     //message.reply(message.content);

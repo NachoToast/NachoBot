@@ -21,7 +21,6 @@ module.exports = {
             interaction.reply(`Take it to NSFW you sick freak (yes this still applies to Safebooru).`, { ephemeral: true});
             return;
         }
-        if (interaction.channel.nsfw);
         var tags = '-status%3Adeleted';
         if (interaction.options.length > 0) {
             if (blacklisted_tags.includes(interaction.options[0].value.toLowerCase())) {
