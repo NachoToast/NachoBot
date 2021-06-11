@@ -41,7 +41,7 @@ client.on('message', async message => {
 		await client.guilds.cache.get('795106209946402837')?.commands.set(slash_commands);
         message.channel.send(`Deployed ${slash_commands.length} slash commands 😎`);
         if (message.content.toLowerCase().includes('all')) {
-            await client.application?.commands.create(slash_commands);
+            await client.application?.commands.set(slash_commands);
             message.channel.send(`Global deploy successfull, poggers.`);
         }
         return;
@@ -93,4 +93,5 @@ client.on('interaction', async interaction => {
 })
 
 client.login(config.discord_token);
-// https://discord.com/api/oauth2/authorize?client_id=845829005805617193&permissions=8&scope=applications.commands%20bot
+// DEV https://discord.com/api/oauth2/authorize?client_id=845829005805617193&permissions=8&scope=applications.commands%20bot
+// LIVE https://discord.com/api/oauth2/authorize?client_id=845641194188308490&permissions=8&scope=applications.commands%20bot

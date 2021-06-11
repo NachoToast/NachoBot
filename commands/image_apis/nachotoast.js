@@ -33,7 +33,7 @@ module.exports = {
         if (io_map.indexOf('meta') !== -1 && interaction.options[io_map.indexOf('meta')].value === true) var verbose = true;
         else var verbose = false;
 
-        const response = await fetch(`https://nachotoast.com/weeb/api`, {
+        const response = await fetch(`https://ntgc.ddns.net/weeb/api`, {
             method: 'post',
             headers: {
                 'Content-Type': 'application/json'
