@@ -1,6 +1,6 @@
 {
   "name": "nachobot",
-  "version": "1.0.0",
+  "version": "3.0.0",
   "description": "Discord bot for messing around in node.",
   "main": "index.js",
   "scripts": {
@@ -17,7 +17,7 @@
   },
   "homepage": "https://github.com/NachoToast/NachoBot#readme",
   "dependencies": {
-    "discord.js": "git+https://github.com/discordjs/discord.js.git",
+    "discord.js": "^12.5.3",
     "node-fetch": "^2.6.1"
   }
 }
