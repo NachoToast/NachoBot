@@ -137,6 +137,7 @@ client.on('message', async (message) => {
 
   // prefix, command, args construction
   const args = message.content
+    .toLowerCase()
     .trim()
     .split(' ')
     .filter((e) => e.length > 0);
