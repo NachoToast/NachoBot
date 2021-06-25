@@ -1,6 +1,8 @@
 const bootStartTime = new Date().getTime();
 
 // client instantiation
+const fs = require('fs');
+const cron = require('node-cron');
 const Discord = require('discord.js');
 const client = new Discord.Client();
 client.commands = new Discord.Collection();
@@ -9,7 +11,7 @@ const commandNameAliases = {};
 const allAliases = [];
 
 const config = require('./config.json');
-
+const nachoWhitelistAPI = require('./apis/whitelist_check');
 //const roleClaimInit = require('./react_roles/init');
 
 // prefix validation checks
@@ -41,7 +43,6 @@ const reactPool = [
 ];
 
 // command file getting
-const fs = require('fs');
 const commandFolders = fs.readdirSync('./commands');
 const duplicateAliases = {};
 for (const folder of commandFolders) {
@@ -101,6 +102,17 @@ client.on('ready', () => {
   if (config.devmode) {
     console.log(`Running in development mode.`);
   }
+
+  // scheduling
+  cron.schedule(
+    `*/${Math.ceil(
+      config.commands.nachotoastMC.whitelistCheckInterval
+    )} * * * *`,
+    () => nachoWhitelistAPI(client)
+  );
+  // cron.schedule(`*/ * * * * *`, () => nachoWhitelistAPI(client));
+
+  nachoWhitelistAPI(client);
 
   // if (config.reactRoles.enabled) {
   //   roleClaimInit(client);
