@@ -113,10 +113,6 @@ client.on('ready', () => {
   // cron.schedule(`*/ * * * * *`, () => nachoWhitelistAPI(client));
 
   nachoWhitelistAPI(client);
-
-  // if (config.reactRoles.enabled) {
-  //   roleClaimInit(client);
-  // }
 });
 
 client.on('message', async (message) => {

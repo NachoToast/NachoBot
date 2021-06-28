@@ -1,7 +1,13 @@
+const { bestPrefix: prefix } = require('../../config.json');
+
 const workingCommands = [
   {
     name: 'help',
     desc: 'Get help for the bot or a specific command.',
+  },
+  {
+    name: 'ping',
+    desc: 'Pings the bot.',
   },
   {
     name: 'whitelist',
@@ -11,9 +17,15 @@ const workingCommands = [
     name: 'cat',
     desc: 'Give a random cat image.',
   },
+  {
+    name: 'dan',
+    desc: 'Get image from Danbooru API.',
+  },
+  {
+    name: 'san',
+    desc: 'Get image from Safebooru API.',
+  },
 ];
-
-const { bestPrefix: prefix } = require('../../config.json');
 
 module.exports = {
   name: 'list',

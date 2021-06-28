@@ -1,4 +1,4 @@
-const ping_responses = [
+const pingResponses = [
   'Pongers!',
   'Pingchomp!',
   'Pagman',
@@ -9,28 +9,24 @@ const ping_responses = [
 
 module.exports = {
   name: 'ping',
+  aliases: ['p'],
   execute: async (client, message, args) => {
-    extras = '';
-    if (
-      interaction.options.length > 0 &&
-      interaction.options[0].name === 'flags'
-    ) {
-      switch (interaction.options[0].value) {
-        case 'l':
-          extras += `\nLatency: ${Math.abs(
-            Date.now() - interaction.createdTimestamp
-          )}ms - API Latency: ${Math.round(client.ws.ping)}ms`;
-          break;
-        case 'mc':
-          extras += `\nMinecraft ping coming soon™`;
-        default:
-          break;
-      }
+    let response =
+      pingResponses[Math.floor(Math.random() * pingResponses.length)];
+
+    if (args.indexOf('l') !== -1) {
+      response +=
+        '\nLatency:' +
+        Math.abs(Date.now() - message.createdTimestamp) +
+        ' ms - API: ' +
+        Math.round(Math.round(client.ws.ping)) +
+        ' ms';
     }
-    interaction.reply(
-      `${
-        ping_responses[Math.floor(Math.random() * ping_responses.length)]
-      } ${extras}`
-    );
+
+    if (args.indexOf('m') !== -1) {
+      response += '\nMinecraft ping coming soon™';
+    }
+
+    message.channel.send(response);
   },
 };

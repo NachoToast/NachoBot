@@ -12,7 +12,6 @@ module.exports = {
   execute: async (client, message, args) => {
     // enabled check
     if (!enabled) {
-      message.react('❌');
       message.reply('This command is disabled.').then((msg) => {
         setTimeout(() => msg.delete(), 1000);
       });
