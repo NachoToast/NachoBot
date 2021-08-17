@@ -1,24 +1,21 @@
 {
-  "name": "nachobot",
-  "version": "3.0.0",
-  "description": "Discord bot for messing around in node.",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/NachoToast/NachoBot.git"
-  },
-  "author": "NachoToast",
-  "license": "CC-BY-SA-4.0",
-  "bugs": {
-    "url": "https://github.com/NachoToast/NachoBot/issues"
-  },
-  "homepage": "https://github.com/NachoToast/NachoBot#readme",
-  "dependencies": {
-    "discord.js": "^12.5.3",
-    "node-cron": "^3.0.0",
-    "node-fetch": "^2.6.1"
-  }
+    "name": "mcserverbot",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+        "discord.js": "^13.1.0",
+        "mongoose": "^5.13.7",
+        "node-cron": "^3.0.0",
+        "rcon-client": "^4.2.3"
+    },
+    "devDependencies": {
+        "nodemon": "^2.0.12"
+    }
 }
