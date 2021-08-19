@@ -6,7 +6,8 @@ const adminHelp: Command = {
 
         output += `\n\`neko w a <minecraft username>\` - Accept a whitelist application.`;
         output += `\n\`neko w r <minecraft username> <reason?>\` - Reject a whitelist application, reason optional.`;
-        output += `\n\`neko w c <minecraft username or discord tag>\` - Clears a whitelist application, allowing user to resubmit.`;
+        output += `\n\`neko w c <minecraft username or discord tag> <reason?>\` - Clears a whitelist application, allowing user to resubmit.`;
+        output += `\n\`neko w l\` - List pending whitelist applications.`;
 
         message.channel.send(output);
     },

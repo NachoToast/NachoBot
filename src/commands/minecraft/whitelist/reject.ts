@@ -1,11 +1,12 @@
 import Command, * as Types from '../../../interfaces/Command';
 import User from '../../../models/user';
 import { devMode, modules } from '../../../config.json';
-import moment from 'moment';
 import Application from '../../../interfaces/Application';
 
 import isAllowed from './isAllowed.module';
 import isValidUsername from './isValidMinecraftUsername.module';
+
+import makeMessage from './makeMessage.module';
 
 const notifyRejected: boolean = modules.minecraft.whitelist.sendRejectedApplications;
 const feedChannel: string = devMode
@@ -38,7 +39,7 @@ const reject: Command = {
             const outputChannel: any | undefined = client.channels.cache.get(feedChannel);
 
             if (outputChannel !== undefined) {
-                makeRejectionMessage(outputChannel, `<@${message.author.id}>`, updatedUser, args.slice(2).join(' '));
+                makeMessage('rejected', outputChannel, `<@${message.author.id}>`, updatedUser, args.slice(2).join(' '));
             }
         }
     },
@@ -48,13 +49,5 @@ const reject: Command = {
         );
     },
 };
-
-export function makeRejectionMessage(outputChannel: any, author: string, user: Application, reason: string = ''): void {
-    outputChannel.send(
-        `${user.minecraft} (<@${user.discord}>)'s whitelist application has been rejected by ${author} after ${moment(
-            user.applied
-        ).fromNow(true)}${reason ? ` with reason: ${reason}` : '.'}`
-    );
-}
 
 export default reject;

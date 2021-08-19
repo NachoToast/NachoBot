@@ -1,13 +1,12 @@
 import Command, * as Types from '../../../interfaces/Command';
 import User from '../../../models/user';
 import { devMode, modules } from '../../../config.json';
-import moment from 'moment';
 import Application from '../../../interfaces/Application';
 
 import isAllowed from './isAllowed.module';
 import isValidUsername from './isValidMinecraftUsername.module';
 
-import { makeRejectionMessage } from './reject';
+import makeMessage from './makeMessage.module';
 
 const notifyAccepted: boolean = modules.minecraft.whitelist.sendAcceptedApplications;
 const notifyRejected: boolean = modules.minecraft.whitelist.sendRejectedApplications;
@@ -54,6 +53,12 @@ const accept: Command = {
         const whitelistOutput: string = await rcon.send(`whitelist add ${args[1]}`);
         if (whitelistOutput === 'Player is already whitelisted') {
             message.channel.send(`Player '${args[1]}' is already whitelisted, marking as already whitelisted.`);
+            if (notifyAccepted) {
+                const outputChannel: any | undefined = client.channels.cache.get(acceptedFeedChannel);
+                if (outputChannel !== undefined) {
+                    makeMessage('accepted', outputChannel, `<@${client?.user?.id}>`, updatedUser);
+                }
+            }
             return;
         }
         if (whitelistOutput === 'That player does not exist') {
@@ -73,7 +78,7 @@ const accept: Command = {
                 const outputChannel: any | undefined = client.channels.cache.get(rejectedFeedChannel);
 
                 if (outputChannel !== undefined) {
-                    makeRejectionMessage(outputChannel, `<@${client?.user?.id}>`, updatedUser, 'invalid username.');
+                    makeMessage('rejected', outputChannel, `<@${client?.user?.id}>`, updatedUser, 'invalid username.');
                 }
             }
             return;
@@ -83,11 +88,12 @@ const accept: Command = {
             const outputChannel: any | undefined = client.channels.cache.get(acceptedFeedChannel);
 
             if (outputChannel !== undefined) {
-                outputChannel.send(
-                    `${updatedUser.minecraft} (<@${updatedUser.discord}>) has been added to the whitelist by <@${
-                        message.author.id
-                    }> after ${moment(updatedUser.applied).fromNow(true)}.`
-                );
+                makeMessage('accepted', outputChannel, `<@${message.author.id}>`, updatedUser);
+                // outputChannel.send(
+                //     `${updatedUser.minecraft} (<@${updatedUser.discord}>) has been added to the whitelist by <@${
+                //         message.author.id
+                //     }> after ${moment(updatedUser.applied).fromNow(true)}.`
+                // );
             }
         }
     },

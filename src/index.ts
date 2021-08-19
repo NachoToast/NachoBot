@@ -141,6 +141,7 @@ client.on('messageCreate', async (message: Message) => {
     }
 
     if (foundCommand === undefined) {
+        if (!config.devMode) return;
         if (command.includes('@')) {
             message.channel.send(`Command not found.`);
         } else {
