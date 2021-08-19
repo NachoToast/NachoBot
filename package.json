@@ -2,18 +2,24 @@
     "name": "mcserverbot",
     "version": "1.0.0",
     "description": "",
-    "main": "index.js",
+    "main": "./build/index.js",
     "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1"
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "start": "node .",
+        "build": "tsc",
+        "dev": "nodemon ./src/index.ts"
     },
     "keywords": [],
     "author": "",
     "license": "ISC",
     "dependencies": {
         "discord.js": "^13.1.0",
+        "moment": "^2.29.1",
         "mongoose": "^5.13.7",
         "node-cron": "^3.0.0",
-        "rcon-client": "^4.2.3"
+        "rcon-client": "^4.2.3",
+        "ts-node": "^10.2.1",
+        "typescript": "^4.3.5"
     },
     "devDependencies": {
         "nodemon": "^2.0.12"

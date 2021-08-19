@@ -1,0 +1,39 @@
+{
+    "devMode": true,
+    "discordToken": "discord token",
+    "devDiscordToken": "discord token for a developer version of the bot",
+    "devServers": [
+        "795106209946402837"
+    ] /* when in devmode, bot only responds in development servers, allowing 2 instances of the bot to be running on the same server, at the same time */,
+    "prefixes": ["neko", "mc", "nachobot", "nacho", "nachiii", "nachi"] /* prefixes for the bot, need at least 1 */,
+    "modules": {
+        "minecraft": {
+            "enabled": true /* if false, you can safely delete all the sibling and children fields */,
+            "mongodb_url": "mongodb+srv://aUsername:password123@cluster0.0ljwt.mongodb.net/aDatabaseName?retryWrites=true&w=majority",
+            "rcon": {
+                "host": "192.168.1.73",
+                "port": 25575,
+                "password": "password123"
+            },
+            "whitelist": {
+                "sendNewApplications": true /* send a message when an application is made (pending) */,
+                "sendAcceptedApplications": true /* send a message when an application is accepted */,
+                "sendRejectedApplications": true /* send a message when an application is rejected */,
+                "newRequestFeedChannel": "877896992653729803" /* channel IDs for above actions */,
+                "newRequestFeedChannelDev": "795106209946402841",
+                "acceptedRequestFeedChannel": "814389780572930068",
+                "rejectedRequestFeedChannel": "877896992653729803",
+                "acceptedRequestFeedChannelDev": "795106209946402841",
+                "rejectedRequestFeedChannelDev": "795106209946402841",
+                "adminRoles": {
+                    /* roles allowed to add, modify, and remove applications, format: serverID: roleID */
+                    "795106209946402837": "816209904594976768",
+                    "814384895530106933": "858200168322695228"
+                }
+            }
+        },
+        "util": {
+            "enabled": true /* core commands, recommended to keep enabled */
+        }
+    }
+}
