@@ -20,7 +20,8 @@ const clear: Command = {
         if (args[1] !== undefined && !isValidUsername(args[1]) && !args[1].includes('<@')) {
             message.channel.send(`'${args[1]}' is not a valid Minecraft username or Discord user.`);
             return;
-        } else {
+        }
+        if (args[1].includes('<@')) {
             args[1] = message.author.id;
         }
 

@@ -67,7 +67,7 @@ const commandAliases: { [name: string]: string } = {};
 const subFolder = __dirname.split('\\')[__dirname.split('\\').length - 1];
 
 for (const moduleName of enabledModules) {
-    const subFiles: string[] = fs.readdirSync(`./${subFolder}/commands/${moduleName}`).filter((e) => e.includes('.'));
+    const subFiles: string[] = fs.readdirSync(`${subFolder}/commands/${moduleName}`).filter((e) => e.includes('.'));
     for (const file of subFiles) {
         const command = require(`./commands/${moduleName}/${file}`);
 

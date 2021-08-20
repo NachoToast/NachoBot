@@ -25,7 +25,7 @@ const apply: Command = {
         const discordID = message.author.id;
         const existingUser = await User.findOne({ $or: [{ minecraft: minecraftUsername }, { discord: discordID }] });
 
-        if (existingUser) {
+        if (!devMode && existingUser) {
             if (existingUser.discord === discordID) {
                 message.channel.send(
                     `You already have a *${existingUser.status ?? 'unknown'}* whitelist application for ${
