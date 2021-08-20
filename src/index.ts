@@ -117,7 +117,7 @@ client.on('messageCreate', async (message: Message) => {
     const inDevServer: boolean = config.devServers.indexOf(message.guildId || config.devServers[0]) !== -1;
     if (config.devMode !== inDevServer) return;
 
-    const [prefix, command, ...args] = message.content.split(' ');
+    const [prefix, command, ...args] = message.content.toLowerCase().split(' ');
 
     if (config.prefixes.indexOf(prefix) == -1) return;
 
