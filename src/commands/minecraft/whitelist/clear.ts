@@ -17,15 +17,22 @@ const feedChannel: string = devMode
 const clear: Command = {
     execute: async ({ message, args = [], client }: { message: Types.Message; args: string[]; client: Types.Client }) => {
         if (!isAllowed(message)) return;
-        if (args[1] !== undefined && !isValidUsername(args[1]) && !args[1].includes('<@')) {
-            message.channel.send(`'${args[1]}' is not a valid Minecraft username or Discord user.`);
-            return;
-        }
-        if (args[1].includes('<@')) {
-            args[1] = message.author.id;
-        }
 
-        const searchTerm = args[1].replace(/[<@!>]/g, '');
+        let searchTerm: string;
+
+        if (args[1] !== undefined) {
+            // if args is defined, a minecraft user has been specified
+            if (args[1].includes('<@')) searchTerm = args[1].replace(/[<@!>]/g, '');
+            else if (isValidUsername(args[1])) searchTerm = args[1];
+            else {
+                message.channel.send(`'${args[1]}' is not a valid Minecraft username or Discord user.`);
+                return;
+            }
+        } else {
+            // otherwise, use the senders discord ID
+            args[1] = `<@${message.author.id}>`;
+            searchTerm = message.author.id;
+        }
 
         const application: Application | null = await User.findOneAndDelete({
             $or: [{ discord: searchTerm }, { minecraft: searchTerm }],

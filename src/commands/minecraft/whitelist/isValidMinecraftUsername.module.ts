@@ -1,4 +1,4 @@
-const invalidUsernameChars: RegExp = new RegExp(/[^a-zA-Z0-9]/, 'g'); // match anything besides a-z, A-Z, 0-9 , and _
+const invalidUsernameChars: RegExp = new RegExp(/[^a-zA-Z0-9_]/, 'g'); // match anything besides a-z, A-Z, 0-9 , and _
 
 function isValidUsername(username: any): boolean {
     if (typeof username !== 'string') return false;
