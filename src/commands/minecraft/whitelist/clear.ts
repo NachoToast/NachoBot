@@ -14,6 +14,8 @@ const feedChannel: string = devMode
     ? modules.minecraft.whitelist.rejectedRequestFeedChannelDev
     : modules.minecraft.whitelist.rejectedRequestFeedChannel;
 
+import filterMessage from '../../../modules/mentionFilter.module';
+
 const clear: Command = {
     execute: async ({ message, args = [], client }: { message: Types.Message; args: string[]; client: Types.Client }) => {
         if (!isAllowed(message)) return;
@@ -21,11 +23,13 @@ const clear: Command = {
         let searchTerm: string;
 
         if (args[1] !== undefined) {
-            // if args is defined, a minecraft user has been specified
+            // if args is defined, a discord or minecraft user has been specified
             if (args[1].includes('<@')) searchTerm = args[1].replace(/[<@!>]/g, '');
-            else if (isValidUsername(args[1])) searchTerm = args[1];
+            // <@ = a discord mention
+            else if (isValidUsername(args[1])) searchTerm = args[1].toLowerCase();
+            // otherwise a minecraft username
             else {
-                message.channel.send(`'${args[1]}' is not a valid Minecraft username or Discord user.`);
+                message.channel.send(`'${filterMessage(args[1])}' is not a valid Minecraft username or Discord user.`);
                 return;
             }
         } else {
