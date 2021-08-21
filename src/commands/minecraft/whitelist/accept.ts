@@ -75,9 +75,14 @@ const accept: Command = {
                 return;
             }
 
-            if (notifyRejected) {
-                const outputChannel: any | undefined = client.channels.cache.get(rejectedFeedChannel);
-
+            // try to send dm to person
+            try {
+                const user = await client.users.fetch(updatedUser.discord);
+                await user.send(
+                    `Hi ${user.username}, your whitelist application for '${updatedUser.minecraft}' was rejected because that Minecraft username doesn't appear to exist.`
+                );
+            } catch (error: any) {
+                const outputChannel: any | undefined = client.channels.cache.get(acceptedFeedChannel);
                 if (outputChannel !== undefined) {
                     makeMessage('rejected', outputChannel, `<@${client?.user?.id}>`, updatedUser, 'invalid username.');
                 }
