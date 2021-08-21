@@ -10,11 +10,6 @@ import makeMessage from './makeMessage.module';
 import filterMessage from '../../../modules/mentionFilter.module';
 
 const notifyAccepted: boolean = modules.minecraft.whitelist.sendAcceptedApplications;
-const notifyRejected: boolean = modules.minecraft.whitelist.sendRejectedApplications;
-
-const rejectedFeedChannel: string = devMode
-    ? modules.minecraft.whitelist.rejectedRequestFeedChannelDev
-    : modules.minecraft.whitelist.rejectedRequestFeedChannel;
 const acceptedFeedChannel: string = devMode
     ? modules.minecraft.whitelist.acceptedRequestFeedChannelDev
     : modules.minecraft.whitelist.acceptedRequestFeedChannel;
@@ -95,11 +90,6 @@ const accept: Command = {
 
             if (outputChannel !== undefined) {
                 makeMessage('accepted', outputChannel, `<@${message.author.id}>`, updatedUser);
-                // outputChannel.send(
-                //     `${updatedUser.minecraft} (<@${updatedUser.discord}>) has been added to the whitelist by <@${
-                //         message.author.id
-                //     }> after ${moment(updatedUser.applied).fromNow(true)}.`
-                // );
             }
         }
     },
