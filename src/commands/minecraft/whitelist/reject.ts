@@ -7,6 +7,7 @@ import isAllowed from './isAllowed.module';
 import isValidUsername from './isValidMinecraftUsername.module';
 
 import makeMessage from './makeMessage.module';
+import filterMessage from '../../../modules/mentionFilter.module';
 
 const notifyRejected: boolean = modules.minecraft.whitelist.sendRejectedApplications;
 const feedChannel: string = devMode
@@ -16,15 +17,21 @@ const feedChannel: string = devMode
 const reject: Command = {
     execute: async ({ message, args = [], client }: { message: Types.Message; args: string[]; client: Types.Client }) => {
         if (!isAllowed(message)) return;
-        if (!isValidUsername(args[1])) {
-            message.channel.send(`'${args[1]}' is not a valid Minecraft username.`);
+
+        let searchTerm: string;
+
+        if (args[1].includes('<@')) {
+            searchTerm = args[1].replace(/[<@!>]/g, '');
+        } else if (isValidUsername(args[1])) {
+            searchTerm = args[1].toLowerCase();
+        } else {
+            message.channel.send(`'${filterMessage(args[1])}' is not a valid Minecraft username.`);
             return;
         }
 
         const updatedUser: Application | null = await User.findOneAndUpdate(
             {
-                minecraft: args[1],
-                status: 'pending',
+                $and: [{ $or: [{ discord: searchTerm }, { minecraft: searchTerm }] }],
             },
             { status: 'rejected' },
             { new: true }
