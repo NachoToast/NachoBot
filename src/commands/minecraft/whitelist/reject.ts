@@ -17,6 +17,10 @@ const feedChannel: string = devMode
 const reject: Command = {
     execute: async ({ message, args = [], client }: { message: Types.Message; args: string[]; client: Types.Client }) => {
         if (!isAllowed(message)) return;
+        if (args[1] === undefined) {
+            message.channel.send(`Please enter a username or tag a Discord user.`);
+            return;
+        }
 
         let searchTerm: string;
 

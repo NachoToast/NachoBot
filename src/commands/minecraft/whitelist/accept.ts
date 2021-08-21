@@ -27,6 +27,10 @@ const accept: Command = {
         client: Types.Client;
     }) => {
         if (!isAllowed(message)) return;
+        if (args[1] === undefined) {
+            message.channel.send(`Please enter a username or tag a Discord user.`);
+            return;
+        }
         if (!isValidUsername(args[1])) {
             message.channel.send(`'${filterMessage(args[1])}' is not a valid Minecraft username.`);
             return;
