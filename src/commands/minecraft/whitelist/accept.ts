@@ -7,6 +7,7 @@ import isAllowed from './isAllowed.module';
 import isValidUsername from './isValidMinecraftUsername.module';
 
 import makeMessage from './makeMessage.module';
+import filterMessage from '../../../modules/mentionFilter.module';
 
 const notifyAccepted: boolean = modules.minecraft.whitelist.sendAcceptedApplications;
 const notifyRejected: boolean = modules.minecraft.whitelist.sendRejectedApplications;
@@ -32,13 +33,13 @@ const accept: Command = {
     }) => {
         if (!isAllowed(message)) return;
         if (!isValidUsername(args[1])) {
-            message.channel.send(`'${args[1]}' is not a valid Minecraft username.`);
+            message.channel.send(`'${filterMessage(args[1])}' is not a valid Minecraft username.`);
             return;
         }
 
         const updatedUser: Application | null = await User.findOneAndUpdate(
             {
-                minecraft: args[1],
+                minecraft: args[1].toLowerCase(),
                 status: 'pending',
             },
             { status: 'accepted' },
