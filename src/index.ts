@@ -10,6 +10,7 @@ import fs from 'fs';
 import mongoose from 'mongoose';
 import { Rcon } from 'rcon-client';
 import Command from './interfaces/Command';
+import filterMessage from './modules/mentionFilter.module';
 
 // rcon instantiation
 const isMinecraftModuleEnabled: boolean = config.modules.minecraft.enabled;
@@ -111,30 +112,26 @@ client.on('ready', () => {
 
 client.on('messageCreate', async (message: Message) => {
     if (message.author.bot) return;
-
     if (blacklistedUsers.includes(message.author.id)) return;
 
     const inDevServer: boolean = config.devServers.indexOf(message.guildId || config.devServers[0]) !== -1;
     if (config.devMode !== inDevServer) return;
 
-    const [prefix, command, ...args] = message.content.toLowerCase().split(' ');
+    const [prefix, command, ...args] = message.content.split(' ');
 
     if (config.prefixes.indexOf(prefix) == -1) return;
 
     let foundCommand: Command | undefined;
 
-    foundCommand = client.commands.get(command) ?? client.commands.get(commandAliases[command]);
+    foundCommand = client.commands.get(command.toLowerCase()) ?? client.commands.get(commandAliases[command.toLowerCase()]);
 
     const params = { client, message, rcon, args };
 
+    // if running 'neko help <arg>' and not 'neko help help'
     if (foundCommand?.name === 'help' && args.length > 0 && args[0] !== 'help') {
-        foundCommand = client.commands.get(args[0]) ?? client.commands.get(commandAliases[args[0]]);
+        foundCommand = client.commands.get(args[0].toLowerCase()) ?? client.commands.get(commandAliases[args[0].toLowerCase()]);
         if (foundCommand === undefined) {
-            if (args[0].includes('@')) {
-                message.channel.send(`No help found for that command.`);
-            } else {
-                message.channel.send(`No help found for ${args[0]}.`);
-            }
+            message.channel.send(`No help found for '${filterMessage(args[0])}'.`);
             return;
         }
         return foundCommand.help({ ...params });
@@ -142,11 +139,7 @@ client.on('messageCreate', async (message: Message) => {
 
     if (foundCommand === undefined) {
         if (!config.devMode) return;
-        if (command.includes('@')) {
-            message.channel.send(`Command not found.`);
-        } else {
-            message.channel.send(`Command '${command}' not found.`);
-        }
+        message.channel.send(`Command '${filterMessage(command)}' not found.`);
         return;
     }
 
