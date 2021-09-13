@@ -21,8 +21,8 @@ const client: any = new Client({ intents });
 // rcon instantiation
 const isMinecraftModuleEnabled: boolean = config.modules.minecraft.enabled;
 // minecraft module
-const mcServer = config.modules.minecraft.enabled && config.modules.minecraft.rcon.enabled ? new MinecraftServer() : undefined;
-if (config.modules.minecraft.enabled && config.modules.minecraft.whitelist.enabled) {
+const mcServer = config.modules.minecraft.enabled && config.modules.minecraft?.rcon?.enabled ? new MinecraftServer() : undefined;
+if (config.modules.minecraft.enabled && config.modules.minecraft?.whitelist?.enabled) {
     // (a)mongoose connection
     mongoose
         .connect(config.modules.minecraft.mongodb_url, {
