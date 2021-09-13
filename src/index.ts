@@ -25,7 +25,7 @@ if (isMinecraftModuleEnabled) {
         })
         .catch((error: Error) => {
             console.log(error);
-            process.exit(1);
+            process.exit();
         });
 
     // (a)mongoose connection
