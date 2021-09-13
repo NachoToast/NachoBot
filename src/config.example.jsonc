@@ -8,14 +8,19 @@
     "prefixes": ["neko", "mc", "nachobot", "nacho", "nachiii", "nachi"] /* prefixes for the bot, need at least 1 */,
     "modules": {
         "minecraft": {
-            "enabled": true /* if false, you can safely delete all the sibling and children fields */,
+            "enabled": false /* if false you can ignore all the other values here (but don't delete them) */,
             "mongodb_url": "mongodb+srv://aUsername:password123@cluster0.0ljwt.mongodb.net/aDatabaseName?retryWrites=true&w=majority",
             "rcon": {
+                "enabled": true,
                 "host": "192.168.1.73",
                 "port": 25575,
-                "password": "password123"
+                "password": "password123",
+                "retryConnectionOnFail": true,
+                "checkInterval": 10,
+                "silent": false
             },
             "whitelist": {
+                "enabled": true,
                 "sendNewApplications": true /* send a message when an application is made (pending) */,
                 "sendAcceptedApplications": true /* send a message when an application is accepted */,
                 "sendRejectedApplications": true /* send a message when an application is rejected */,
