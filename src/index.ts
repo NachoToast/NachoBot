@@ -11,18 +11,18 @@ import mongoose from 'mongoose';
 import { Rcon } from 'rcon-client';
 import Command from './interfaces/Command';
 import filterMessage from './modules/mentionFilter.module';
-import MinecraftServer from './modules/rcon.module';
+import MinecraftServer from './modules/minecraft/rcon.module';
 
 // client instantiation
 import { Client, Collection, Message } from 'discord.js';
 import intents from './modules/intents.module';
 const client: any = new Client({ intents });
 
-// rcon instantiation
-const isMinecraftModuleEnabled: boolean = config.modules.minecraft.enabled;
-// minecraft module
-const mcServer = config.modules.minecraft.enabled && config.modules.minecraft?.rcon?.enabled ? new MinecraftServer() : undefined;
-if (config.modules.minecraft.enabled && config.modules.minecraft?.whitelist?.enabled) {
+// module import set up stuff
+const MODULES: { [index: string]: any } = {};
+
+if (!!config?.modules?.minecraft?.enabled) {
+    MODULES.minecraft = {};
     // (a)mongoose connection
     mongoose
         .connect(config.modules.minecraft.mongodb_url, {
@@ -37,7 +37,21 @@ if (config.modules.minecraft.enabled && config.modules.minecraft?.whitelist?.ena
             console.log(error);
             process.exit(1);
         });
+    // do mongoose
+    if (!!config?.modules?.minecraft?.rcon?.enabled) {
+        // rcon
+        MODULES.minecraft.rcon = new MinecraftServer();
+        if (!!config?.modules?.minecraft?.whitelist?.enabled) {
+            // whitelist
+        }
+    }
 }
+
+// rcon instantiation
+// const isMinecraftModuleEnabled: boolean = config.modules.minecraft.enabled;
+// minecraft module
+// const mcServer = config.modules.minecraft.enabled && config.modules.minecraft?.rcon?.enabled ? new MinecraftServer() : undefined;
+// if (config.modules.minecraft.enabled && config.modules.minecraft?.whitelist?.enabled) {
 
 // command loading
 client.commands = new Collection();

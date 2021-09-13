@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { Rcon } from 'rcon-client';
-import { modules } from '../config.json';
+import { modules } from '../../config.json';
 
 const { host, port, password, retryConnectionOnFail, checkInterval, silent } = modules.minecraft.rcon;
 
