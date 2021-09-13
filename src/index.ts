@@ -11,23 +11,18 @@ import mongoose from 'mongoose';
 import { Rcon } from 'rcon-client';
 import Command from './interfaces/Command';
 import filterMessage from './modules/mentionFilter.module';
+import MinecraftServer from './modules/rcon.module';
+
+// client instantiation
+import { Client, Collection, Message } from 'discord.js';
+import intents from './modules/intents.module';
+const client: any = new Client({ intents });
 
 // rcon instantiation
 const isMinecraftModuleEnabled: boolean = config.modules.minecraft.enabled;
-let rcon: Rcon;
 // minecraft module
-if (isMinecraftModuleEnabled) {
-    rcon = new Rcon({ host: RCON.host, port: RCON.port, password: RCON.password });
-    // rcon connection
-    rcon.connect()
-        .then(() => {
-            console.log('RCON successfully connected.');
-        })
-        .catch((error: Error) => {
-            console.log(error);
-            process.exit();
-        });
-
+const mcServer = config.modules.minecraft.enabled && config.modules.minecraft.rcon.enabled ? new MinecraftServer() : undefined;
+if (config.modules.minecraft.enabled && config.modules.minecraft.whitelist.enabled) {
     // (a)mongoose connection
     mongoose
         .connect(config.modules.minecraft.mongodb_url, {
@@ -43,11 +38,6 @@ if (isMinecraftModuleEnabled) {
             process.exit(1);
         });
 }
-
-// client instantiation
-import { Client, Collection, Message } from 'discord.js';
-import intents from './modules/intents.module';
-const client: any = new Client({ intents });
 
 // command loading
 client.commands = new Collection();
@@ -125,7 +115,7 @@ client.on('messageCreate', async (message: Message) => {
 
     foundCommand = client.commands.get(command.toLowerCase()) ?? client.commands.get(commandAliases[command.toLowerCase()]);
 
-    const params = { client, message, rcon, args };
+    const params = { client, message, /* rcon, */ args };
 
     // if running 'neko help <arg>' and not 'neko help help'
     if (foundCommand?.name === 'help' && args.length > 0 && args[0] !== 'help') {
