@@ -2,7 +2,7 @@ import { Client, Collection } from 'discord.js';
 import fs from 'fs';
 import { modules, disableAllModules } from './config.json';
 import { DiscordClient } from './interfaces/Client';
-import Command, { CommandAliasesMap } from './interfaces/Command';
+import Command from './interfaces/Command';
 import intents from './modules/intents.module';
 
 interface StringIndexedObject {
@@ -26,7 +26,7 @@ class Module {
 
     public submodules: Module[];
     public files: string[] = [];
-    public allCommands: ExtendedCommandInfo[] = [];
+    public allCommands: any[] = [];
     public validCommands: ExtendedCommandInfo[] = [];
     public numSubCommands: number = 0;
 
@@ -38,7 +38,7 @@ class Module {
         this.offset = offset;
         this.routerOnly = parentObj[name]?.routerOnly ?? false;
 
-        const possibleSubmodules = getEnabledSubkeys(parentObj[name]);
+        const possibleSubmodules = Module.getEnabledSubkeys(parentObj[name]);
 
         fs.appendFileSync(
             this.logFile,
@@ -57,10 +57,11 @@ class Module {
     }
 
     public generateReport() {
+        // TODO: show fails instead of successes
         fs.appendFileSync(
             this.logFile,
             `\n[${new Date().toLocaleTimeString()}]${!!this.offset ? ' ├' + '─'.repeat(this.offset) : ''} '${this.name}' ${
-                !!this.offset ? 'Submodule' : 'Module'
+                this.routerOnly ? 'Router' : !!this.offset ? 'Submodule' : 'Module'
             } | ${this.files.length} Files │ ${this.allCommands.length} Commands | ${
                 this.validCommands.length
             } Valid Commands │ ${this.numSubCommands} Subcommands`
@@ -176,12 +177,15 @@ class Module {
     private loadCommands() {
         for (const file of this.files) {
             try {
-                const payload: Command = require(`./${file}`);
+                const payload: any = require(`./${file}`);
                 this.allCommands.push({ payload, file, fromModule: this });
             } catch (error) {
                 if (error instanceof Error) {
-                    // if error is by fs, only get the first line since the other ones include the whole stack trace, which is unnecessary
-                    fs.appendFileSync(this.logFile, `\n[${new Date().toLocaleTimeString()}] ${error.message.split('\n')[0]}`);
+                    // if error, only first line is necessary since rest is just stack track
+                    fs.appendFileSync(
+                        this.logFile,
+                        `\n[${new Date().toLocaleTimeString()}] ${error.message.split('\n')[0]} ('${file}')`
+                    );
                 } else fs.appendFileSync(this.logFile, `\n[${new Date().toLocaleTimeString()}] ${error}`);
             }
         }
@@ -197,7 +201,7 @@ class Module {
     private verifyCommands() {
         for (const command of this.allCommands) {
             if (Module.commandIsValid(command, this.logFile)) {
-                this.validCommands.push(command);
+                this.validCommands.push(command as ExtendedCommandInfo);
                 if (!!command.payload?.numSubCommands) this.numSubCommands += command.payload.numSubCommands;
             }
         }
@@ -205,46 +209,63 @@ class Module {
         Promise.all(this.submodules.map((e) => e.promiseVerifyCommands()));
     }
 
-    private static commandIsValid(command: ExtendedCommandInfo, logFile: string) {
-        if (!Object.keys(command.payload).length) {
-            fs.appendFileSync(logFile, `\n[${new Date().toLocaleTimeString()}] '${command.file}' does not have any content`);
+    private static commandIsValid(command: any, logFile: string) {
+        try {
+            // ensure type is generic object
+            if (!Object.keys(command.payload).length) {
+                fs.appendFileSync(logFile, `\n[${new Date().toLocaleTimeString()}] '${command.file}' does not have any content`);
+                return false;
+            }
+
+            // differentiate between class command (export default new Class()) and other object (module.exports = {})
+            if (typeof command.payload?.default !== 'undefined') {
+                // if no name property specified, use class name
+                if (!command.payload.default?.name) {
+                    command.payload.default.name = (command.payload.default.constructor.name as string).toLowerCase();
+                }
+                command.payload = command.payload.default;
+            }
+
+            if (typeof command.payload?.name !== 'string') {
+                fs.appendFileSync(
+                    logFile,
+                    `\n[${new Date().toLocaleTimeString()}] '${command.file}' file must have a name string, got '${typeof command
+                        .payload?.name}'`
+                );
+                return false;
+            }
+
+            if (command.payload?.name.includes(' ')) {
+                fs.appendFileSync(
+                    logFile,
+                    `\n[${new Date().toLocaleTimeString()}] '${
+                        command.payload.name
+                    }' is an invalid command name because it contains spaces ('${command.file}')`
+                );
+                return false;
+            }
+            if (typeof command.payload?.execute !== 'function') {
+                fs.appendFileSync(
+                    logFile,
+                    `\n[${new Date().toLocaleTimeString()}] '${
+                        command.payload.name
+                    }' should have execute method, got '${typeof command.payload?.execute}' ('${command.file}')`
+                );
+                return false;
+            }
+            if (typeof command.payload?.help !== 'function') {
+                fs.appendFileSync(
+                    logFile,
+                    `\n[${new Date().toLocaleTimeString()}] '${
+                        command.payload.name
+                    }' should have a help method, these are optional but recommended ('${command.file})'`
+                );
+            }
+            return true;
+        } catch (error) {
+            fs.appendFileSync(logFile, `\n[${new Date().toLocaleTimeString()}] '${command.file}' had error: ${error}`);
             return false;
         }
-        if (typeof command.payload?.name !== 'string') {
-            fs.appendFileSync(
-                logFile,
-                `\n[${new Date().toLocaleTimeString()}] '${command.file}' file must have a name string, got '${typeof command
-                    .payload?.name}'`
-            );
-            return false;
-        }
-        if (command.payload?.name.includes(' ')) {
-            fs.appendFileSync(
-                logFile,
-                `\n[${new Date().toLocaleTimeString()}] '${
-                    command.payload.name
-                }' is an invalid command name because it contains spaces ('${command.file}')`
-            );
-            return false;
-        }
-        if (typeof command.payload?.execute !== 'function') {
-            fs.appendFileSync(
-                logFile,
-                `\n[${new Date().toLocaleTimeString()}] '${
-                    command.payload.name
-                }' should have execute method, got '${typeof command.payload?.execute}' ('${command.file}')`
-            );
-            return false;
-        }
-        if (typeof command.payload?.help !== 'function') {
-            fs.appendFileSync(
-                logFile,
-                `\n[${new Date().toLocaleTimeString()}] '${
-                    command.payload.name
-                }' should have a help method, these are optional but recommended ('${command.file})'`
-            );
-        }
-        return true;
     }
 
     public async promiseNonDuplicateCommands(names: string[], aliases: string[]): Promise<Command[]> {
@@ -296,117 +317,133 @@ class Module {
         }
         return output;
     }
-}
 
-async function loadModulesFromConfig(client: DiscordClient) {
-    const logFile = `logs/moduleLoader.log`;
-    const subFolder = __dirname.split('\\')[__dirname.split('\\').length - 1]; // 'src' or 'build'
-    fs.writeFileSync(logFile, `[${new Date().toLocaleTimeString()}] Scanning config for enabled command modules...`);
-
-    // registering
-    const allModules = getEnabledSubkeys(modules).map((e) => new Module(e, modules, subFolder, 'commands', logFile));
-    fs.appendFileSync(
-        logFile,
-        `\n[${new Date().toLocaleTimeString()}] Registered ${allModules.length} modules and ${allModules
-            .map((e) => e.getNumSubmodules())
-            .reduce(
-                (sum, current) => sum + current
-            )} submodules.\n[${new Date().toLocaleTimeString()}] Attempting to find files...`
-    );
-
-    // loading files
-    await Promise.all(allModules.map((e) => e.promiseFindFiles()));
-    fs.appendFileSync(
-        logFile,
-        `\n[${new Date().toLocaleTimeString()}] Found ${allModules
-            .map((e) => e.getNumFiles())
-            .reduce((sum, current) => sum + current)} files.\n[${new Date().toLocaleTimeString()}] Attempting to load commands...`
-    );
-
-    // loading commands from files
-    await Promise.all(allModules.map((e) => e.promiseLoadCommands()));
-    fs.appendFileSync(
-        logFile,
-        `\n[${new Date().toLocaleTimeString()}] Loaded ${allModules
-            .map((e) => e.getNumAllCommands())
-            .reduce((sum, current) => sum + current)} commands.\n[${new Date().toLocaleTimeString()}] Verifying commands...`
-    );
-
-    // verifying commands syntax
-    await Promise.all(allModules.map((e) => e.promiseVerifyCommands()));
-    fs.appendFileSync(
-        logFile,
-        `\n[${new Date().toLocaleTimeString()}] Found ${allModules
-            .map((e) => e.getNumValidCommands())
-            .reduce((sum, current) => sum + current)} valid commands (${allModules
-            .map((e) => e.getNumSubCommands())
-            .reduce(
-                (sum, current) => sum + current
-            )} valid subcommands).\n[${new Date().toLocaleTimeString()}] Checking for duplicate names and aliases...`
-    );
-
-    // detecting duplicate names and aliases
-    const duplicateNames = allModules
-        .map((e) => e.getAllNames())
-        .flat()
-        .filter((e, i, a) => a.indexOf(e) !== i);
-    const duplicateAliases = allModules
-        .map((e) => e.getAllAliases())
-        .flat()
-        .filter((e, i, a) => a.indexOf(e) !== i);
-
-    fs.appendFileSync(
-        logFile,
-        `\n[${new Date().toLocaleTimeString()}] Found ${duplicateAliases.length} duplicate aliases, ${
-            duplicateNames.length
-        } duplicate names.`
-    );
-
-    const nonDuplicateCommands = (
-        await Promise.all(allModules.map((e) => e.promiseNonDuplicateCommands(duplicateNames, duplicateAliases)))
-    ).flat();
-
-    // add commands to client collection and alias map
-    fs.appendFileSync(
-        logFile,
-        `\n[${new Date().toLocaleTimeString()}] ${nonDuplicateCommands.length} unique commands found, applying...`
-    );
-    const commands: Collection<string, Command> = new Collection();
-    const commandAliases: StringIndexedObject = {};
-
-    for (const command of nonDuplicateCommands) {
-        // add aliases to map
-        if (!!command?.aliases?.length) {
-            for (const alias of command.aliases) {
-                commandAliases[alias] = command.name;
-            }
-        }
-
-        // add actual command
-        commands.set(command.name, command);
+    public static getEnabledSubkeys(object: StringIndexedObject) {
+        return Object.keys(object).filter((e) => !!object[e]?.enabled && !object[e]?.standalone);
     }
 
-    client.commands = commands;
-    client.commandAliases = commandAliases;
+    public static async loadFromConfig(client: DiscordClient) {
+        const logFile = `logs/moduleLoader.log`;
 
-    fs.appendFileSync(
-        logFile,
-        `\n[${new Date().toLocaleTimeString()}] Applied ${client.commands.size} commands with ${
-            Object.keys(client.commandAliases).length
-        } aliases.\n[${new Date().toLocaleTimeString()}] Generating stats report...`
-    );
+        if (disableAllModules) {
+            client.commands = new Collection();
+            client.commandAliases = {};
 
-    allModules.map((e) => e.generateReport());
-}
+            fs.writeFileSync(logFile, `\n[${new Date().toLocaleTimeString()}] All modules disabled.`);
+            return;
+        }
 
-function getEnabledSubkeys(object: StringIndexedObject) {
-    return Object.keys(object).filter((e) => !!object[e]?.enabled && !object[e]?.standalone);
+        const subFolder = __dirname.split('\\')[__dirname.split('\\').length - 1]; // 'src' or 'build'
+        fs.writeFileSync(logFile, `[${new Date().toLocaleTimeString()}] Scanning config for enabled command modules...`);
+
+        // registering
+        const allModules = Module.getEnabledSubkeys(modules).map((e) => new Module(e, modules, subFolder, 'commands', logFile));
+        fs.appendFileSync(
+            logFile,
+            `\n[${new Date().toLocaleTimeString()}] Registered ${allModules.length} modules and ${allModules
+                .map((e) => e.getNumSubmodules())
+                .reduce(
+                    (sum, current) => sum + current
+                )} submodules.\n[${new Date().toLocaleTimeString()}] Attempting to find files...`
+        );
+
+        // loading files
+        await Promise.all(allModules.map((e) => e.promiseFindFiles()));
+        fs.appendFileSync(
+            logFile,
+            `\n[${new Date().toLocaleTimeString()}] Found ${allModules
+                .map((e) => e.getNumFiles())
+                .reduce(
+                    (sum, current) => sum + current
+                )} files.\n[${new Date().toLocaleTimeString()}] Attempting to load commands...`
+        );
+
+        // loading commands from files
+        await Promise.all(allModules.map((e) => e.promiseLoadCommands()));
+        fs.appendFileSync(
+            logFile,
+            `\n[${new Date().toLocaleTimeString()}] Loaded ${allModules
+                .map((e) => e.getNumAllCommands())
+                .reduce((sum, current) => sum + current)} commands.\n[${new Date().toLocaleTimeString()}] Verifying commands...`
+        );
+
+        // verifying commands syntax
+        await Promise.all(allModules.map((e) => e.promiseVerifyCommands()));
+        fs.appendFileSync(
+            logFile,
+            `\n[${new Date().toLocaleTimeString()}] Found ${allModules
+                .map((e) => e.getNumValidCommands())
+                .reduce((sum, current) => sum + current)} valid commands (${allModules
+                .map((e) => e.getNumSubCommands())
+                .reduce(
+                    (sum, current) => sum + current
+                )} valid subcommands).\n[${new Date().toLocaleTimeString()}] Checking for duplicate names and aliases...`
+        );
+
+        // detecting duplicate names and aliases
+        const duplicateNames = allModules
+            .map((e) => e.getAllNames())
+            .flat()
+            .filter((e, i, a) => a.indexOf(e) !== i);
+        const duplicateAliases = allModules
+            .map((e) => e.getAllAliases())
+            .flat()
+            .filter((e, i, a) => a.indexOf(e) !== i);
+
+        fs.appendFileSync(
+            logFile,
+            `\n[${new Date().toLocaleTimeString()}] Found ${duplicateAliases.length} duplicate aliases, ${
+                duplicateNames.length
+            } duplicate names.`
+        );
+
+        const nonDuplicateCommands = (
+            await Promise.all(allModules.map((e) => e.promiseNonDuplicateCommands(duplicateNames, duplicateAliases)))
+        ).flat();
+
+        // add commands to client collection and alias map
+        fs.appendFileSync(
+            logFile,
+            `\n[${new Date().toLocaleTimeString()}] ${nonDuplicateCommands.length} unique commands found, applying...`
+        );
+        const commands: Collection<string, Command> = new Collection();
+        const commandAliases: StringIndexedObject = {};
+
+        for (const command of nonDuplicateCommands) {
+            // add aliases to map
+            if (!!command?.aliases?.length) {
+                for (const alias of command.aliases) {
+                    commandAliases[alias] = command.name;
+                }
+            }
+
+            // add actual command
+            commands.set(command.name, command);
+        }
+
+        client.commands = commands;
+        client.commandAliases = commandAliases;
+
+        fs.appendFileSync(
+            logFile,
+            `\n[${new Date().toLocaleTimeString()}] Applied ${client.commands.size} commands with ${
+                Object.keys(client.commandAliases).length
+            } aliases.\n[${new Date().toLocaleTimeString()}] Generating stats report...`
+        );
+
+        allModules.map((e) => e.generateReport());
+    }
 }
 
 function createClient(): DiscordClient {
     const client: any = new Client({ intents });
-    loadModulesFromConfig(client).then(() => console.log(client.commands));
+    Module.loadFromConfig(client)
+        .catch((e) => {
+            console.log(e);
+            process.exit();
+        })
+        .then((e) => console.log('All Modules Loaded'));
     return client as DiscordClient;
 }
 
-createClient();
+export default createClient;

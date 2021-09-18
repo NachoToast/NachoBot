@@ -1,11 +1,19 @@
 import Command from '../../interfaces/Command';
 import { prefixes } from '../../config.json';
+import { Message } from 'discord.js';
 
 const help: Command = {
     name: 'help',
     aliases: ['h', '?'],
-    execute: async () => {
-        console.log('help command triggered!');
+    execute: async ({ message }: { message: Message }) => {
+        message.channel.send(
+            `Use a command: \`<prefix> <command> <args?>\`\nGet Command Specific Help: \`<prefix> help <command> <args?>\`\nPrefixes: \`${prefixes
+                .filter((e) => !e.includes('@'))
+                .join('`, `')}\``
+        );
+    },
+    help: async ({ message }: { message: Message }) => {
+        help.execute({ message });
     },
 };
 

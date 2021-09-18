@@ -6,7 +6,7 @@ import Command, { Params } from './interfaces/Command';
 import { Message } from 'discord.js';
 import filterMessage from './modules/mentionFilter.module';
 import { DiscordClient } from './interfaces/Client';
-import createClient from './loader-old';
+import createClient from './moduleLoader';
 
 const client: DiscordClient = createClient();
 
@@ -42,7 +42,6 @@ client.on('messageCreate', async (message: Message) => {
     }
 
     const params: Params = { client, message, args };
-    console.log(foundCommand.name);
 
     // neko command => args[0].execute()
     // neko command help => args[0].help()
@@ -50,7 +49,7 @@ client.on('messageCreate', async (message: Message) => {
     // neko help command => args[0].help()
     // neko help help => help.execute()
 
-    if (foundCommand.name !== 'help') foundCommand.execute();
+    if (foundCommand.name !== 'help') foundCommand.execute({ ...params });
     else {
         if (!!args.length) {
             const foundCommand =

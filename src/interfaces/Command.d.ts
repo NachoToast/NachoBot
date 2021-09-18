@@ -1,13 +1,18 @@
 import { Client, Message } from 'discord.js';
 import { Rcon } from 'rcon-client';
 
-export default interface Command {
-    name: string;
+export interface CommandClass {
+    name?: string;
     aliases?: string[];
     execute: Function;
     help?: Function;
     disabled?: boolean;
     numSubCommands?: number | undefined;
+    [any: string]: any;
+}
+
+export default interface Command extends CommandClass {
+    name: string;
 }
 
 export interface CommandAliasesMap {

@@ -4,4 +4,4 @@ package-lock.json
 build
 arc
 ext
-logs
+*.log
