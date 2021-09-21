@@ -13,5 +13,5 @@
         "resolveJsonModule": true,
         "alwaysStrict": true
     },
-    "exclude": ["arc", "build", "ext"]
+    "exclude": ["arc", "build"]
 }

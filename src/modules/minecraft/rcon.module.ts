@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import fs from 'fs';
 import { Rcon } from 'rcon-client';
 import { modules } from '../../config.json';
+import { EventEmitter } from 'stream';
 
 const { host, port, password, retryConnectionOnFail, checkInterval } = modules.minecraft.rcon;
 
@@ -101,6 +102,21 @@ class MinecraftServer {
     }
 
     public isConnected = () => this.connected;
+
+    public async executeCommand(command: string) {
+        try {
+            const output = await this.instance.send(command);
+            return output;
+        } catch (error) {
+            if (error instanceof Error) {
+                this.log(error.message);
+                return error.message;
+            } else {
+                this.log(`${error}`);
+                return `${error}`;
+            }
+        }
+    }
 }
 
 const minecraftServer = new MinecraftServer();

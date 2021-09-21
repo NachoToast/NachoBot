@@ -1,8 +1,7 @@
-import Command from '../../interfaces/Command';
+import { Command, DiscordClient } from '../../interfaces/Command';
 import { Message } from 'discord.js';
-import { DiscordClient } from '../../interfaces/Client';
 
-const ping: Command = {
+export const ping: Command = {
     name: 'ping',
     aliases: ['p'],
     execute: async ({ client, message, args }: { client: DiscordClient; message: Message; args: string[] }) => {
@@ -20,5 +19,3 @@ const ping: Command = {
         );
     },
 };
-
-module.exports = ping;

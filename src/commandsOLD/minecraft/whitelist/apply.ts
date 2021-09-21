@@ -1,5 +1,5 @@
 import Command, * as Types from '../../../interfaces/Command';
-import User from '../../../models/user';
+import User from '../../../models/userOld';
 import { devMode, modules } from '../../../config.json';
 import isValidUsername from './isValidMinecraftUsername.module';
 import filterMessage from '../../../modules/mentionFilter.module';

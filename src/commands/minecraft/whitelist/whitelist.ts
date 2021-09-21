@@ -1,44 +1,67 @@
-import isAllowed from '../../../commandsOLD/minecraft/whitelist/isAllowed.module';
-import Command, { CommandClass, Params } from '../../../interfaces/Command';
+import { isAllowed } from '../../../modules/minecraft/whitelist/whitelistAdmin.module';
+import { Command, CommandWithHelp, Params } from '../../../interfaces/Command';
 
-import { basicHelp, adminHelp } from './subcommands/help';
 import { modules } from '../../../config.json';
-
 if (!modules.minecraft.rcon.enabled) {
     throw new Error('RCON must be enabled for whitelist submodule to work.');
 }
 
 import minecraftServer from '../../../modules/minecraft/rcon.module';
-minecraftServer.isConnected(); // for some reason nothing works from that file unless I call something in it
+// minecraftServer.isConnected(); // for some reason nothing works from that file unless I call something in it
 
-class Whitelist implements CommandClass {
+import loadSubCommands from '../../../helpers/commandModuleHelper';
+import filterMessage from '../../../modules/mentionFilter.module';
+
+// subcommand importing
+import { help } from './subcommands/help';
+import { apply } from './subcommands/apply';
+import { remove } from './subcommands/remove';
+import { status } from './subcommands/status';
+import { suspend } from './subcommands/suspend';
+import { info } from './subcommands/info';
+import { list } from './subcommands/list';
+
+const [whitelistCommands, whitelistCommandAliases] = loadSubCommands([apply, help, remove, status, suspend, info, list]);
+
+class Whitelist implements Command {
+    public name = 'whitelist';
     public aliases = ['w'];
-    public numSubCommands = 1;
+    public commands = whitelistCommands;
+    public commandAliases = whitelistCommandAliases;
+    public numSubCommands = this.commands.size;
     public async execute(params: Params, helpMode = false) {
-        let subCommandToExecute: Command | CommandClass;
-        // if coming from help command, search command to use by args[1] (since args[0] is "help")
-        const searchParam = helpMode ? params.args[1] ?? params.args[0] : params.args[0];
-        switch (searchParam) {
-            case 'h':
-            case 'help':
-                subCommandToExecute =
-                    (isAllowed(params.message) && !params.args.includes('basic')) || params.args.includes('admin')
-                        ? adminHelp
-                        : basicHelp;
-                break;
-            default:
-                subCommandToExecute = basicHelp;
-                break;
+        const foundCommand = !!params.args.length
+            ? this.commands.get(params.args[0].toLowerCase()) ??
+              this.commands.get(this.commandAliases[params.args[0].toLowerCase()])
+            : undefined;
+
+        const isAdmin = isAllowed(params.message);
+
+        const fullParams = { ...params, isAdmin };
+        if (!foundCommand) {
+            if (!!params.args.length && helpMode) {
+                // e.g. neko help whitelist a_nonexistant_arg
+                params.message.channel.send(`Subcommand '${filterMessage(params.args[0])}' does not exist.`);
+            } else if (helpMode) {
+                // e.g. neko help whitelist
+                (this.commands.get('help') as CommandWithHelp).help(fullParams);
+            } else {
+                // e.g. neko whitelist
+                this.commands.get('APPLY')?.execute(fullParams);
+            }
+            return;
         }
 
-        if (helpMode) {
-            if (!!subCommandToExecute.help) subCommandToExecute.help(params);
-            else params.message.channel.send(`${subCommandToExecute?.name || 'that'} subcommand has no help section.`);
-        } else subCommandToExecute.execute(params);
+        if (!helpMode) foundCommand.execute(fullParams);
+        else {
+            if (!!foundCommand?.help) foundCommand.help(fullParams);
+            else params.message.channel.send(`No help found for '${foundCommand.name}' subcommand.`);
+        }
     }
     public async help(params: Params) {
+        params.args.splice(0, 1);
         this.execute(params, true);
     }
 }
 
-export default new Whitelist();
+export const whitelist = new Whitelist();

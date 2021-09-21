@@ -2,13 +2,13 @@ const startBoot = new Date();
 console.log(`${startBoot.toLocaleString()}\nBooting NachoBot...\n--------------------`);
 import * as config from './config.json';
 import { blacklistedUsers } from './blacklistedUsers.json';
-import Command, { Params } from './interfaces/Command';
+import { Command, Params, DiscordClient } from './interfaces/Command';
 import { Message } from 'discord.js';
 import filterMessage from './modules/mentionFilter.module';
-import { DiscordClient } from './interfaces/Client';
-import createClient from './moduleLoader';
+import createClient from './helpers/moduleLoader';
 
 const client: DiscordClient = createClient();
+// const onNonQuotedWhitespace = new RegExp(/\s+(?=(?:[^\'"]*[\'"][^\'"]*[\'"])*[^\'"]*$)/, 'g'); // https://stackoverflow.com/a/24778778/15257167
 
 client.on('ready', () => {
     const finishBoot = new Date();
@@ -24,8 +24,8 @@ client.on('messageCreate', async (message: Message) => {
 
     const inDevServer: boolean = config.devServers.indexOf(message.guildId || config.devServers[0]) !== -1;
     if (config.devMode !== inDevServer) return;
-
     const [prefix, command, ...args] = message.content.split(' ');
+    // const [prefix, command, ...args] = message.content.split(onNonQuotedWhitespace);
     if (config.prefixes.indexOf(prefix) == -1) return;
 
     if (!command) {
@@ -40,6 +40,9 @@ client.on('messageCreate', async (message: Message) => {
         if (config.devMode) message.channel.send(`Command '${filterMessage(command)}' not found.`);
         return;
     }
+
+    // biscuitmunch c hello there       -> ['c', 'hello', 'there']
+    // biscuitmunch c "hello there      -> ['c', 'hello there']
 
     const params: Params = { client, message, args };
 
@@ -58,7 +61,7 @@ client.on('messageCreate', async (message: Message) => {
             if (!foundCommand) {
                 message.channel.send(`Command '${filterMessage(args[0])}' not found.`);
             } else if (!foundCommand?.help) {
-                message.channel.send(`No help found for '${filterMessage(args[0])}' command.`);
+                message.channel.send(`No help found for '${foundCommand.name}' command.`);
             } else foundCommand.help({ ...params });
         } else client.commands.get('help')?.execute({ ...params });
     }

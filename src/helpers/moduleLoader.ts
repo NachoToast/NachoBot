@@ -1,9 +1,8 @@
 import { Client, Collection } from 'discord.js';
 import fs from 'fs';
-import { modules, disableAllModules } from './config.json';
-import { DiscordClient } from './interfaces/Client';
-import Command from './interfaces/Command';
-import intents from './modules/intents.module';
+import { modules, disableAllModules } from '../config.json';
+import { Command, DiscordClient } from '../interfaces/Command';
+import intents from '../modules/intents.module';
 
 interface StringIndexedObject {
     [index: string]: any;
@@ -26,8 +25,7 @@ class Module {
 
     public submodules: Module[];
     public files: string[] = [];
-    public allCommands: any[] = [];
-    public validCommands: ExtendedCommandInfo[] = [];
+    public commands: ExtendedCommandInfo[] = [];
     public numSubCommands: number = 0;
 
     constructor(name: string, parentObj: StringIndexedObject, longPath: string, shortPath: string, logFile: string, offset = 0) {
@@ -56,17 +54,30 @@ class Module {
         );
     }
 
-    public generateReport() {
-        // TODO: show fails instead of successes
+    public generateReport(maxOffset: number) {
+        const ts = `\n[${new Date().toLocaleTimeString()}] `;
+        const br = (!!this.offset ? '├' + '─'.repeat(this.offset) + ' ' : '') + `'${this.name}'`;
+        const type = this.routerOnly ? 'Router' : !!this.offset ? 'Submodule' : 'Module';
+        const tp = type + ' '.repeat(9 - type.length);
+        const padding = 5 + maxOffset - br.length;
+        const pd = ' '.repeat(padding > 0 ? padding : 0);
+
         fs.appendFileSync(
             this.logFile,
-            `\n[${new Date().toLocaleTimeString()}]${!!this.offset ? ' ├' + '─'.repeat(this.offset) : ''} '${this.name}' ${
-                this.routerOnly ? 'Router' : !!this.offset ? 'Submodule' : 'Module'
-            } | ${this.files.length} Files │ ${this.allCommands.length} Commands | ${
-                this.validCommands.length
-            } Valid Commands │ ${this.numSubCommands} Subcommands`
+            `${ts}${br}${pd}│ ${tp} │ ${this.files.length} Files │ ${this.commands.length} Commands │ ${
+                this.numSubCommands
+            } Subcommands │ ${this.commands.map((e) => e.payload.name).join(', ')}`
         );
-        this.submodules.map((e) => e.generateReport());
+        this.submodules.map((e) => e.generateReport(maxOffset));
+    }
+
+    public getMaxOffset() {
+        let offset = this.name.length + (!!this.offset ? this.offset + 2 : 0);
+        for (const submodule of this.submodules) {
+            const subOffset = submodule.getMaxOffset();
+            if (submodule.getMaxOffset() > offset) offset = subOffset;
+        }
+        return offset;
     }
 
     // gets the number of submodules in this module and all of its submodules
@@ -89,18 +100,9 @@ class Module {
 
     // gets the number of (all) commands in this module and all of its submodules
     public getNumAllCommands() {
-        let myCommands = this.allCommands.length;
+        let myCommands = this.commands.length;
         for (const submodule of this.submodules) {
             myCommands += submodule.getNumAllCommands();
-        }
-        return myCommands;
-    }
-
-    // gets the number of valid commands in this module and all of its submodules
-    public getNumValidCommands() {
-        let myCommands = this.validCommands.length;
-        for (const submodule of this.submodules) {
-            myCommands += submodule.getNumValidCommands();
         }
         return myCommands;
     }
@@ -116,7 +118,7 @@ class Module {
 
     public getAllAliases() {
         const aliases: string[] = [];
-        for (const command of this.validCommands) {
+        for (const command of this.commands) {
             if (!!command?.payload?.aliases?.length) {
                 aliases.push(...command.payload.aliases);
             }
@@ -129,7 +131,7 @@ class Module {
 
     public getAllNames() {
         const names: string[] = [];
-        for (const command of this.validCommands) names.push(command.payload.name);
+        for (const command of this.commands) names.push(command.payload.name);
         for (const submodule of this.submodules) {
             names.push(...submodule.getAllNames());
         }
@@ -142,11 +144,13 @@ class Module {
         });
     }
 
+    private static fileValidator = new RegExp('^.*(?:ts|js)$');
+
     private findFiles() {
         try {
             const newFiles = fs
                 .readdirSync(this.longPath)
-                .filter((e) => e.includes('.'))
+                .filter((e) => Module.fileValidator.test(e))
                 .map((e) => `${this.shortPath}/${e}`);
 
             if (!newFiles.length && !this.routerOnly) throw new Error(`'${this.name}' module has no command files`);
@@ -177,95 +181,23 @@ class Module {
     private loadCommands() {
         for (const file of this.files) {
             try {
-                const payload: any = require(`./${file}`);
-                this.allCommands.push({ payload, file, fromModule: this });
+                const imports: StringIndexedObject = require(`../${file}`);
+                for (const payload of Object.keys(imports)) {
+                    this.commands.push({ payload: imports[payload], file, fromModule: this });
+                    if (!!imports[payload]?.numSubCommands) this.numSubCommands += imports[payload].numSubCommands;
+                }
             } catch (error) {
                 if (error instanceof Error) {
-                    // if error, only first line is necessary since rest is just stack track
+                    // if error, only get brief message, not entire stack trace
                     fs.appendFileSync(
                         this.logFile,
                         `\n[${new Date().toLocaleTimeString()}] ${error.message.split('\n')[0]} ('${file}')`
                     );
+                    console.log(error.message);
                 } else fs.appendFileSync(this.logFile, `\n[${new Date().toLocaleTimeString()}] ${error}`);
             }
         }
         Promise.all(this.submodules.map((e) => e.promiseLoadCommands()));
-    }
-
-    public async promiseVerifyCommands(): Promise<void> {
-        return new Promise((res) => {
-            res(this.verifyCommands());
-        });
-    }
-
-    private verifyCommands() {
-        for (const command of this.allCommands) {
-            if (Module.commandIsValid(command, this.logFile)) {
-                this.validCommands.push(command as ExtendedCommandInfo);
-                if (!!command.payload?.numSubCommands) this.numSubCommands += command.payload.numSubCommands;
-            }
-        }
-
-        Promise.all(this.submodules.map((e) => e.promiseVerifyCommands()));
-    }
-
-    private static commandIsValid(command: any, logFile: string) {
-        try {
-            // ensure type is generic object
-            if (!Object.keys(command.payload).length) {
-                fs.appendFileSync(logFile, `\n[${new Date().toLocaleTimeString()}] '${command.file}' does not have any content`);
-                return false;
-            }
-
-            // differentiate between class command (export default new Class()) and other object (module.exports = {})
-            if (typeof command.payload?.default !== 'undefined') {
-                // if no name property specified, use class name
-                if (!command.payload.default?.name) {
-                    command.payload.default.name = (command.payload.default.constructor.name as string).toLowerCase();
-                }
-                command.payload = command.payload.default;
-            }
-
-            if (typeof command.payload?.name !== 'string') {
-                fs.appendFileSync(
-                    logFile,
-                    `\n[${new Date().toLocaleTimeString()}] '${command.file}' file must have a name string, got '${typeof command
-                        .payload?.name}'`
-                );
-                return false;
-            }
-
-            if (command.payload?.name.includes(' ')) {
-                fs.appendFileSync(
-                    logFile,
-                    `\n[${new Date().toLocaleTimeString()}] '${
-                        command.payload.name
-                    }' is an invalid command name because it contains spaces ('${command.file}')`
-                );
-                return false;
-            }
-            if (typeof command.payload?.execute !== 'function') {
-                fs.appendFileSync(
-                    logFile,
-                    `\n[${new Date().toLocaleTimeString()}] '${
-                        command.payload.name
-                    }' should have execute method, got '${typeof command.payload?.execute}' ('${command.file}')`
-                );
-                return false;
-            }
-            if (typeof command.payload?.help !== 'function') {
-                fs.appendFileSync(
-                    logFile,
-                    `\n[${new Date().toLocaleTimeString()}] '${
-                        command.payload.name
-                    }' should have a help method, these are optional but recommended ('${command.file})'`
-                );
-            }
-            return true;
-        } catch (error) {
-            fs.appendFileSync(logFile, `\n[${new Date().toLocaleTimeString()}] '${command.file}' had error: ${error}`);
-            return false;
-        }
     }
 
     public async promiseNonDuplicateCommands(names: string[], aliases: string[]): Promise<Command[]> {
@@ -276,7 +208,7 @@ class Module {
 
     private returnNonDuplicateCommands(duplicateNames: string[], duplicateAliases: string[]) {
         const output: Command[] = [];
-        for (const command of this.validCommands) {
+        for (const command of this.commands) {
             // alias checking
             if (!!command.payload?.aliases?.length) {
                 let aliasIndex = -1;
@@ -308,7 +240,6 @@ class Module {
                 );
                 continue;
             }
-
             output.push(command.payload);
         }
 
@@ -333,7 +264,7 @@ class Module {
             return;
         }
 
-        const subFolder = __dirname.split('\\')[__dirname.split('\\').length - 1]; // 'src' or 'build'
+        const subFolder = __dirname.split('\\').slice(-2, -1)[0]; // 'src' or 'build'
         fs.writeFileSync(logFile, `[${new Date().toLocaleTimeString()}] Scanning config for enabled command modules...`);
 
         // registering
@@ -364,20 +295,11 @@ class Module {
             logFile,
             `\n[${new Date().toLocaleTimeString()}] Loaded ${allModules
                 .map((e) => e.getNumAllCommands())
-                .reduce((sum, current) => sum + current)} commands.\n[${new Date().toLocaleTimeString()}] Verifying commands...`
-        );
-
-        // verifying commands syntax
-        await Promise.all(allModules.map((e) => e.promiseVerifyCommands()));
-        fs.appendFileSync(
-            logFile,
-            `\n[${new Date().toLocaleTimeString()}] Found ${allModules
-                .map((e) => e.getNumValidCommands())
-                .reduce((sum, current) => sum + current)} valid commands (${allModules
+                .reduce((sum, current) => sum + current)} commands, ${allModules
                 .map((e) => e.getNumSubCommands())
                 .reduce(
                     (sum, current) => sum + current
-                )} valid subcommands).\n[${new Date().toLocaleTimeString()}] Checking for duplicate names and aliases...`
+                )} subcommands.\n[${new Date().toLocaleTimeString()}] Checking for duplicate names and aliases...`
         );
 
         // detecting duplicate names and aliases
@@ -431,7 +353,8 @@ class Module {
             } aliases.\n[${new Date().toLocaleTimeString()}] Generating stats report...`
         );
 
-        allModules.map((e) => e.generateReport());
+        const maxOffset = Math.max(...allModules.map((e) => e.getMaxOffset()));
+        allModules.map((e) => e.generateReport(maxOffset));
     }
 }
 

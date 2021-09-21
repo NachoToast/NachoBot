@@ -1,7 +1,10 @@
-const tagsEveryone = new RegExp(/@everyone/, 'g');
-const tagsUser = new RegExp(/<@!?[0-9]{17,}>/, 'g');
-const tagsRole = new RegExp('<@&[0-9]{17,}>', 'g');
-const tagsHere = new RegExp(/@here/, 'g');
+const tagsEveryone = new RegExp(/@everyone/);
+export const tagsUser = new RegExp(/<@!?[0-9]{17,}>/);
+export const removeUserTags = (mention: string) => mention.replace(/[<>!@]/g, '');
+const tagsRole = new RegExp(/<@&[0-9]{17,}>/);
+const tagsHere = new RegExp(/@here/);
+
+export const discordIdTest = new RegExp(/[^0-9]/);
 
 function filterMessage(message: string): string {
     return message

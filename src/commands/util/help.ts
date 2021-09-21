@@ -1,8 +1,8 @@
-import Command from '../../interfaces/Command';
+import { Command } from '../../interfaces/Command';
 import { prefixes } from '../../config.json';
 import { Message } from 'discord.js';
 
-const help: Command = {
+export const help: Command = {
     name: 'help',
     aliases: ['h', '?'],
     execute: async ({ message }: { message: Message }) => {
@@ -16,5 +16,3 @@ const help: Command = {
         help.execute({ message });
     },
 };
-
-module.exports = help;

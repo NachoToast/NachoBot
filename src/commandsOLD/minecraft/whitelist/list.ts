@@ -1,6 +1,6 @@
 import Command, * as Types from '../../../interfaces/Command';
 import { MessageEmbed } from 'discord.js';
-import User from '../../../models/user';
+import User from '../../../models/userOld';
 import moment from 'moment';
 
 import Application from '../../../interfaces/Application';
