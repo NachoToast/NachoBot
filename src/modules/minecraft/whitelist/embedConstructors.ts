@@ -16,6 +16,7 @@ const colourMap: { [key in Statuses]: HexColorString } = {
     frozen: '#4275be',
     rejected: '#4275be',
     pending: '#934e6b',
+    all: '#f0dbca',
     // vacant: '#2a2a3a',
 };
 
@@ -25,6 +26,7 @@ const statusDescriptions: { [key in Statuses]: string } = {
     frozen: 'Temporarily removed from whitelist and awaiting further review.',
     pending: 'Awaiting admin review.',
     rejected: 'Rejected by an admin.',
+    all: 'Search term status only, you should never see this on your application.',
 };
 
 // converts profile flags into a nicer format
@@ -127,7 +129,7 @@ export function applicationInfoEmbed(message: Message, user: User) {
         const userDiscord = (message.channel as TextChannel).guild.members.cache.get(user.discord);
 
         const embed = new MessageEmbed()
-            .setTitle(`${user.minecraft}'s Application'`)
+            .setTitle(`${user.minecraft}'s Application`)
             .setDescription(
                 `\nStatus: **${user.status[0].toUpperCase() + user.status.slice(1)}**\n${
                     statusDescriptions[user.status]
@@ -162,9 +164,9 @@ export function massStatusEmbed(results: User[], total: number, status: Statuses
         const description: string[] = [];
         for (let i = 0, len = results.length; i < len; i++) {
             description.push(
-                `${i + 1}. ${results[i].minecraft} (<@${results[i].discord}>) - *${moment(
-                    results[i].log[0].timestamp
-                ).fromNow()}*`
+                `${i + 1}. ${status === 'all' ? `[${results[i].status[0].toUpperCase() + results[i].status.slice(1)}] ` : ''}${
+                    results[i].minecraft
+                } (<@${results[i].discord}>) - *${moment(results[i].log.slice(-1)[0].timestamp).fromNow()}*`
             );
         }
 

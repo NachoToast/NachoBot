@@ -1,4 +1,4 @@
-import { isAllowed } from '../../../modules/minecraft/whitelist/whitelistAdmin.module';
+import { isAllowed } from '../../../modules/minecraft/whitelist/validation';
 import { Command, CommandWithHelp, Params } from '../../../interfaces/Command';
 
 import { modules } from '../../../config.json';
@@ -7,7 +7,6 @@ if (!modules.minecraft.rcon.enabled) {
 }
 
 import minecraftServer from '../../../modules/minecraft/rcon.module';
-// minecraftServer.isConnected(); // for some reason nothing works from that file unless I call something in it
 
 import loadSubCommands from '../../../helpers/commandModuleHelper';
 import filterMessage from '../../../modules/mentionFilter.module';
@@ -20,8 +19,22 @@ import { status } from './subcommands/status';
 import { suspend } from './subcommands/suspend';
 import { info } from './subcommands/info';
 import { list } from './subcommands/list';
+import { clear } from './subcommands/clear';
+import { accept } from './subcommands/accept';
+import { reject } from './subcommands/reject';
 
-const [whitelistCommands, whitelistCommandAliases] = loadSubCommands([apply, help, remove, status, suspend, info, list]);
+const [whitelistCommands, whitelistCommandAliases] = loadSubCommands([
+    apply,
+    help,
+    remove,
+    status,
+    suspend,
+    info,
+    list,
+    clear,
+    accept,
+    reject,
+]);
 
 class Whitelist implements Command {
     public name = 'whitelist';
@@ -30,6 +43,11 @@ class Whitelist implements Command {
     public commandAliases = whitelistCommandAliases;
     public numSubCommands = this.commands.size;
     public async execute(params: Params, helpMode = false) {
+        if (!minecraftServer.isConnected() && !helpMode) {
+            params.message.channel.send(`Could not connect to Minecraft server, please try again later.`);
+            return;
+        }
+
         const foundCommand = !!params.args.length
             ? this.commands.get(params.args[0].toLowerCase()) ??
               this.commands.get(this.commandAliases[params.args[0].toLowerCase()])

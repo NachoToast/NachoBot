@@ -11,7 +11,7 @@ LIST OF POSSIBLE STATUS (statusChangedTo, status):
 'banned' [ban] - user was banned
 'vacant' [clear | remove] - slot was taken but is now free // NOT YET IMPLEMENTED OR SUPPORTED
 */
-export type Statuses = 'pending' | 'accepted' | 'rejected' | 'frozen' | 'banned';
+export type Statuses = 'pending' | 'accepted' | 'rejected' | 'frozen' | 'banned' | 'all';
 
 export interface UserLogAction {
     doneBy: string; // discord ID (can be bot)

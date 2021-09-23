@@ -143,7 +143,7 @@ export const apply: Command = {
             }
         }
 
-        const newUser = await makeNewApplication(minecraftUsername, discordID, comment);
+        const newUser = await makeNewApplication(minecraftUsername, discordID, comment, onBehalf ? message.author.id : false);
         if (!newUser) {
             message.channel.send(`Error occured making database entry, please contact <@240312568273436674>`);
             return;

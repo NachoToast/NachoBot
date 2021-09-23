@@ -64,9 +64,11 @@ class Module {
 
         fs.appendFileSync(
             this.logFile,
-            `${ts}${br}${pd}│ ${tp} │ ${this.files.length} Files │ ${this.commands.length} Commands │ ${
-                this.numSubCommands
-            } Subcommands │ ${this.commands.map((e) => e.payload.name).join(', ')}`
+            `${ts}${br}${pd}│ ${tp} │ ${this.files.length} Files ${' '.repeat(3 - this.files.length.toString().length)}│ ${
+                this.commands.length
+            } Commands ${' '.repeat(3 - this.commands.length.toString().length)}│ ${this.numSubCommands} Subcommands ${' '.repeat(
+                3 - this.numSubCommands.toString().length
+            )}│ ${this.commands.map((e) => e.payload.name).join(', ')}`
         );
         this.submodules.map((e) => e.generateReport(maxOffset));
     }

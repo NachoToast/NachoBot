@@ -22,7 +22,7 @@ class List implements Command {
         let searchStatus: Statuses = 'pending';
         let searchPage = 1;
         if (!!args.length) {
-            searchStatus = args[0] as Statuses;
+            searchStatus = args[0].toLowerCase() as Statuses;
             if (!!args[1]) {
                 if (Number.isInteger(Number(args[1]))) searchPage = parseInt(args[1]);
                 else {
@@ -55,7 +55,7 @@ class List implements Command {
 
     public async help({ message }: { message: Message }) {
         message.channel.send(
-            `List applications (optionally) by status (default pending) and page number(default 1).\nUsage: \`neko whitelist list <status?> <page?>\`\nAdmin only.`
+            `List applications (optionally) by status (default pending) and page number(default 1).\nUsage: \`neko whitelist list <status | all?> <page?>\`\nAdmin only.`
         );
     }
 }

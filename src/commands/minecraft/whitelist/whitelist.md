@@ -11,16 +11,18 @@ This whitelist submodule provides a way to whitelist members on a remote Minecra
 
 ###### Admin
 
--   ❌ accept
-    -   ❌ broadcast accepted
--   ❌ reject
-    -   ❌ broadcast rejected
+-   ✅ accept
+    -   ✅ broadcast accepted
+    -   ❌ catch failures on rcon and update db accordingly
+-   ✅ reject
+    -   ✅ broadcast rejected
 -   ❌ freeze
 -   ❌ ban
--   ❌ list
--   ❌ clear
+-   ✅ list
+-   ✅ clear
 -   ✅ info (like status but with vetting info)
 -   ✅ suspend (on/query/off)
+-   ❌ migration handler
 
 ###### Basic
 
