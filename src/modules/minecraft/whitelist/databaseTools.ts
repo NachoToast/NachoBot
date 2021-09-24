@@ -1,158 +1,141 @@
+import { WhitelistError, maxApplicationsPerPage } from '../../../commands/minecraft/whitelist/constants/database';
+import DEFAULT_LOG_COMMENTS from '../../../commands/minecraft/whitelist/constants/logComments';
 import { Statuses, User, UserLogAction, UserModel } from '../../../models/user';
 
-// get single user based on discordID and optionally minecraft username
-export async function getSingleDBUser(discord: string, minecraftUsername?: string): Promise<User | null | undefined> {
+export type dbFnReturn = Promise<User | null | WhitelistError>;
+
+/** Gets a single database entry by Minecraft username or Discord ID. */
+export async function getSingleDBUser(discordOrMinecraft: string, status?: Statuses): dbFnReturn {
     try {
         let foundUser: User;
-        if (!!minecraftUsername) {
-            foundUser = await UserModel.findOne({ $or: [{ minecraftLowercase: minecraftUsername.toLowerCase() }, { discord }] });
-        } else foundUser = await UserModel.findOne({ discord });
+        if (!status) {
+            foundUser = await UserModel.findOne({
+                $or: [{ minecraftLowercase: discordOrMinecraft.toLowerCase() }, { discord: discordOrMinecraft }],
+            });
+        } else {
+            foundUser = await UserModel.findOne({
+                $or: [{ minecraftLowercase: discordOrMinecraft.toLowerCase() }, { discord: discordOrMinecraft }],
+                status,
+            });
+        }
         return foundUser ?? null;
     } catch (error) {
         console.log(error);
-        return undefined;
+        return new WhitelistError('databaseRead', error);
     }
 }
 
-// wip
-const modificationMap: { [key in Statuses]: string } = {
-    accepted: '',
-    banned: '',
-    frozen: '',
-    pending: '',
-    rejected: '',
-    all: '',
-};
+/** Makes a log object out of a status change (with a relevant default comment if not specified). */
+export function makeLogItem(doneBy: string, statusChangedTo: Statuses, comment?: string): UserLogAction {
+    return {
+        doneBy,
+        statusChangedTo,
+        timestamp: new Date().toISOString(),
+        comment: comment || DEFAULT_LOG_COMMENTS[statusChangedTo],
+    };
+}
 
-export async function acceptApplication(
-    accepteeDiscordOrMinecraft: string,
-    accepterDiscord: string,
-    comment: string | undefined
-) {
+/** Updates an exising entry. */
+export async function updateApplicationStatus(
+    discordOrMinecraft: string,
+    logAddition: UserLogAction,
+    setStatus: Statuses,
+    searchStatus?: Statuses
+): dbFnReturn {
     try {
-        const userToAccept: User = await UserModel.findOne({
-            $or: [{ discord: accepteeDiscordOrMinecraft }, { minecraftLowercase: accepteeDiscordOrMinecraft.toLowerCase() }],
-            status: 'pending',
-        });
-        if (!userToAccept) {
-            return null;
-        }
-        userToAccept.status = 'accepted';
-        const newLogItem: UserLogAction = {
-            doneBy: accepterDiscord,
-            statusChangedTo: 'accepted',
-            timestamp: new Date().toISOString(),
-            comment: comment || 'Accepted their whitelist application',
-        };
-        userToAccept.log.push(newLogItem);
+        const userToUpdate = await getSingleDBUser(discordOrMinecraft, searchStatus);
+        if (userToUpdate === null || userToUpdate instanceof WhitelistError) return userToUpdate;
 
-        const updatedUser: User = await UserModel.findOneAndUpdate({ discord: userToAccept.discord }, userToAccept, {
-            new: true,
-        });
-        if (!updatedUser) return null;
+        userToUpdate.log.push(logAddition);
+        userToUpdate.status = setStatus;
 
+        const updatedUser = await UserModel.findOneAndUpdate({ discord: userToUpdate.discord }, userToUpdate, { new: true });
         return updatedUser;
     } catch (error) {
         console.log(error);
-        return;
+        return new WhitelistError('databaseBoth', error);
     }
 }
 
-export async function rejectApplication(rejecteeDiscordOrMinecraft: string, rejecterDiscord: string, comment: string) {
-    try {
-        const userToReject: User = await UserModel.findOne({
-            $or: [{ discord: rejecteeDiscordOrMinecraft }, { minecraftLowercase: rejecteeDiscordOrMinecraft.toLowerCase() }],
-            status: 'pending',
-        });
-        if (!userToReject) {
-            return null;
-        }
-        userToReject.status = 'rejected';
-        const newLogItem: UserLogAction = {
-            doneBy: rejecterDiscord,
-            statusChangedTo: 'rejected',
-            timestamp: new Date().toISOString(),
-            comment,
-        };
-        userToReject.log.push(newLogItem);
-
-        const updatedUser: User = await UserModel.findOneAndUpdate({ discord: userToReject.discord }, userToReject, {
-            new: true,
-        });
-        if (!updatedUser) return null;
-
-        return updatedUser;
-    } catch (error) {
-        console.log(error);
-        return;
-    }
-}
-
-// makes a new whitelist application
+/** Makes a new database entry and accompanying log. */
 export async function makeNewApplication(
     minecraft: string,
     discord: string,
-    comment: string = 'Initial application',
-    doneBy: string | false
-) {
+    doneBy?: string,
+    comment?: string
+): Promise<User | WhitelistError> {
     try {
-        const timestamp = new Date().toISOString();
-
-        const initialLog: UserLogAction = {
-            doneBy: doneBy || discord,
-            statusChangedTo: 'pending',
-            timestamp,
-            comment,
-        };
-
-        const newApplicant: User = {
-            minecraft,
+        const newLog = makeLogItem(doneBy || discord, 'pending', comment);
+        const newUser: User = {
             minecraftLowercase: minecraft.toLowerCase(),
+            minecraft,
             discord,
-            applied: timestamp,
+            applied: new Date().toISOString(),
             status: 'pending',
-            log: [initialLog],
+            log: [newLog],
         };
 
-        UserModel.create(newApplicant);
-
-        return newApplicant;
+        await UserModel.create(newUser);
+        return newUser;
     } catch (error) {
         console.log(error);
-        // TODO: error log file
+        return new WhitelistError('databaseWrite', error);
     }
 }
 
-// remove pending database entry by discord id
-export async function removeEntry(discord: string, status: Statuses) {
+/** Removes a database entry. */
+export async function clearApplication(discordOrMinecraft: string, status?: Statuses): dbFnReturn {
     try {
-        const removedUser: User = await UserModel.findOneAndDelete({ discord, status });
-        return removedUser;
+        let removedUser: User;
+        if (!!status) {
+            removedUser = await UserModel.findOneAndDelete({
+                $or: [{ discord: discordOrMinecraft }, { minecraftLowercase: discordOrMinecraft.toLowerCase() }],
+                status,
+            });
+        } else {
+            removedUser = await UserModel.findOneAndDelete({
+                $or: [{ discord: discordOrMinecraft }, { minecraftLowercase: discordOrMinecraft.toLowerCase() }],
+            });
+        }
+        return removedUser ?? null;
     } catch (error) {
         console.log(error);
-        return;
+        return new WhitelistError('databaseWrite', error);
     }
 }
 
-// returns up to 20 applications + page number info
-export async function searchApplications(status: Statuses, page: number = 1) {
+export interface WhitelistSearchResults {
+    applications: User[];
+    total: number;
+}
+/** Searches database entries, optionally by status and with page offset. */
+export async function searchApplications({
+    status,
+    page,
+}: {
+    status: Statuses | undefined;
+    page: number | undefined;
+}): Promise<WhitelistError | WhitelistSearchResults> {
     try {
         // default 20 per page
-        const perPage = 20;
-        const startIndex = (page - 1) * perPage;
-        const total: number = await UserModel.countDocuments({});
+        const startIndex = ((page ?? 1) - 1) * maxApplicationsPerPage;
+        let total: number;
+        if (!!status) total = await UserModel.countDocuments({ status });
+        else total = await UserModel.countDocuments();
 
         let applications: User[];
-        if (status === 'all') {
-            applications = await UserModel.find().sort({ applied: 'asc' }).limit(perPage).skip(startIndex);
+        if (!!status) {
+            applications = await UserModel.find({ status })
+                .sort({ applied: 'asc' })
+                .limit(maxApplicationsPerPage)
+                .skip(startIndex);
         } else {
-            applications = await UserModel.find({ status }).sort({ applied: 'asc' }).limit(perPage).skip(startIndex);
+            applications = await UserModel.find().sort({ applied: 'asc' }).limit(maxApplicationsPerPage).skip(startIndex);
         }
 
-        if (!!applications.length) return { applications, total };
-        return null;
+        return { applications, total };
     } catch (error) {
         console.log(error);
-        return undefined;
+        return new WhitelistError('databaseRead', error);
     }
 }

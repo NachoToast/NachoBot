@@ -13,9 +13,11 @@ This whitelist submodule provides a way to whitelist members on a remote Minecra
 
 -   ✅ accept
     -   ✅ broadcast accepted
+        -   ❌ with comments
     -   ❌ catch failures on rcon and update db accordingly
 -   ✅ reject
     -   ✅ broadcast rejected
+        -   ❌ with comments
 -   ❌ freeze
 -   ❌ ban
 -   ✅ list
@@ -29,6 +31,7 @@ This whitelist submodule provides a way to whitelist members on a remote Minecra
 -   ✅ apply
 -   -   ✅ broadcast new
 -   -   ✅ on behalf of
--   -   -   ✅ with comment
+        -   ✅ with comment
 -   ✅ status
+    -   ❌ of others too
 -   ✅ remove

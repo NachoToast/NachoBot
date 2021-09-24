@@ -1,69 +1,71 @@
 import { Message, TextChannel } from 'discord.js';
 import { Command, DiscordClient } from '../../../../interfaces/Command';
-import filterMessage, { removeUserTags, tagsUser } from '../../../../modules/mentionFilter.module';
-import { isValidUsername } from '../../../../modules/minecraft/whitelist/username';
+import { makeLogItem, updateApplicationStatus } from '../../../../modules/minecraft/whitelist/databaseTools';
+import { searchTypeAndTerm } from '../../../../modules/minecraft/whitelist/username';
+import { WhitelistError } from '../constants/database';
+import DENIED_MESSAGES from '../constants/deniedMessages';
 import { devMode, modules } from '../../../../config.json';
-import { rejectApplication } from '../../../../modules/minecraft/whitelist/databaseTools';
 import moment from 'moment';
+import { WhitelistValidator } from '../../../../modules/minecraft/whitelist/validation';
 
 const notifyRejected = modules.minecraft.whitelist.sendRejectedApplications;
 const feedChannel = devMode
     ? modules.minecraft.whitelist.rejectedRequestFeedChannelDev
     : modules.minecraft.whitelist.rejectedRequestFeedChannel;
 
-export const reject: Command = {
-    name: 'reject',
-    execute: async ({
-        message,
+class Reject implements Command {
+    public name = 'reject';
+
+    private reasonFlag = 'r';
+
+    public async execute({
         args,
         client,
         isAdmin,
+        message,
     }: {
-        message: Message;
         args: string[];
         client: DiscordClient;
         isAdmin: boolean;
-    }) => {
+        message: Message;
+    }) {
         if (!isAdmin) {
-            message.react('❌');
+            DENIED_MESSAGES.NO_PERMISSION(message);
             return;
         }
 
+        if (!WhitelistValidator.applicationsOpen) {
+            message.channel.send(WhitelistValidator.message());
+            return;
+        }
         args.splice(0, 1);
 
         if (!args.length) {
-            message.channel.send(`Please specify a Minecraft username or Discord user, and a reason for rejection.`);
+            DENIED_MESSAGES.NOT_SPECIFIED_USER(message);
             return;
         }
 
-        let searchTerm = message.author.id;
-        let searchType: 'discord' | 'minecraft' = 'discord';
-        if (tagsUser.test(args[0])) {
-            searchTerm = removeUserTags(args[0]);
-        } else if (isValidUsername(args[0])) {
-            searchTerm = args[0];
-            searchType = 'minecraft';
-        } else {
-            message.channel.send(`${filterMessage(args[0])} is not a valid Minecraft username or Discord user.`);
-            return;
-        }
-        args.splice(0, 1);
+        const [searchType, searchTerm] = searchTypeAndTerm(args[0]);
 
-        // (if on behalf) check user specified is in valid Discord server & not a bot
-        let comment = args.splice(0).join(' ');
-        if (!comment.length) {
-            message.channel.send('Please specify a reason');
+        if (searchType === 'invalid') {
+            DENIED_MESSAGES.INVALID_EITHER(message, args[0]);
             return;
         }
 
-        const updatedUser = await rejectApplication(searchTerm, message.author.id, comment);
-        if (updatedUser === undefined) {
-            message.channel.send(`Error occured querying database, please contact <@240312568273436674>`);
+        const reason = this.getReason(message, args);
+        if (reason === false) return;
+
+        const newUserLog = makeLogItem(message.author.id, 'rejected', reason);
+
+        const rejectedUser = await updateApplicationStatus(searchTerm, newUserLog, 'rejected', 'pending');
+
+        if (rejectedUser instanceof WhitelistError) {
+            message.channel.send(rejectedUser.message);
             return;
-        } else if (updatedUser === null) {
-            message.channel.send(
-                `Couldn't find a pending request linked ${searchType === 'discord' ? `<@${searchTerm}>` : searchTerm}`
-            );
+        }
+
+        if (!rejectedUser) {
+            DENIED_MESSAGES.NOT_FOUND(message, searchType, searchTerm, 'pending');
             return;
         }
 
@@ -73,18 +75,29 @@ export const reject: Command = {
             const outputChannel = client.channels.cache.get(feedChannel) as TextChannel | undefined;
 
             if (!!outputChannel) {
-                outputChannel.send(
-                    `${updatedUser.minecraft} (<@${updatedUser.discord}>) has been rejected from the whitelist by <@${
+                // TODO: move this to its own module, and message constant for this
+                message.channel.send(
+                    `${rejectedUser.minecraft} (<@${rejectedUser.discord}>) has been rejected from the whitelist by <@${
                         message.author.id
-                    }> after ${moment(updatedUser.applied).fromNow()}.`
+                    }> after ${moment(rejectedUser.applied).fromNow(true)}.`
                 );
             }
         }
-    },
-    help: async ({ message }: { message: Message }) => {
-        message.channel.send(
-            `Rejects a whitelist application.\nUsage: \`neko whitelist reject <minecraft | discord> <...reason>\`\nAdmin only.`
-        );
-    },
-};
-// TODO: make this 1 big class definition instead
+    }
+
+    /** Gets the reason specified if applicable, or `false` if invalid. */
+    private getReason(message: Message, args: string[]) {
+        const attemptedReason = args.indexOf(this.reasonFlag) + 1;
+        if (!attemptedReason) return;
+        if (!args[attemptedReason]) {
+            DENIED_MESSAGES.NOT_SPECIFIED_REASON(message);
+            return false;
+        }
+
+        return args.slice(attemptedReason).join(' ');
+    }
+}
+
+export const reject = new Reject();
+
+// TODO: enforce commands for this

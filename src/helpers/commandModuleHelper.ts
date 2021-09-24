@@ -1,15 +1,14 @@
-import { Command, CommandCollection, RouterCommands, StringIndexed } from '../interfaces/Command';
+import { Command, CommandCollection, StringIndexed } from '../interfaces/Command';
 import { Collection } from 'discord.js';
-// this helper is for command routers to use to load their subcommands, similar to how moduleLoader loads client commands
+// this helper is for command routers to use to load their subcommands, similar to how moduleLoader loads client commands.
 
 /*
-✅ loads all command types (export const, export default)
 ✅ loads aliases and maps them to command names
 ❌ checks for duplicate names and aliases
-❌ make sure required methods (execute, name) are present
 */
 
-function loadSubCommands(commandList: Command[]): [CommandCollection, StringIndexed] {
+/** A WIP command that loads an array of command-like objects into 2 objects: a collection of (`name`, `command`), and an object of (`alias`: `name`). Does NOT check for duplicate names/aliases (yet). */
+export default function loadSubCommands(commandList: Command[]): [CommandCollection, StringIndexed] {
     const commandMap: CommandCollection = new Collection();
     const aliasMap: StringIndexed = {};
     for (const command of commandList) {
@@ -22,5 +21,3 @@ function loadSubCommands(commandList: Command[]): [CommandCollection, StringInde
     }
     return [commandMap, aliasMap];
 }
-
-export default loadSubCommands;

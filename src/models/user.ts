@@ -1,17 +1,20 @@
 import mongoose from 'mongoose';
-import { ObjectId } from 'mongoose';
 import { devMode } from '../config.json';
 
-/*
-LIST OF POSSIBLE STATUS (statusChangedTo, status):
-'pending' [n/a | apply] - default status upon application
-'accepted' [accept] - user is on whitelist, may or may not have a doneBy accompanying in logs, who knows
-'rejected' [reject] - rejected by an admin
-'frozen' [freeze] - temporarily on hold for external checks/vetting (should unwhitelist if updated to this)
-'banned' [ban] - user was banned
-'vacant' [clear | remove] - slot was taken but is now free // NOT YET IMPLEMENTED OR SUPPORTED
+/**
+* `pending` - default status upon application
+
+* `accepted` [accept] - user is on whitelist
+
+* `rejected` [reject] - rejected by an admin
+
+* `frozen` [freeze] - temporarily on hold for external checks/vetting (should unwhitelist if updated to this)
+
+* `banned` [ban] - user was banned
+
+* `vacant` [clear | remove] - slot was taken but is now free // NOT YET IMPLEMENTED OR SUPPORTED
 */
-export type Statuses = 'pending' | 'accepted' | 'rejected' | 'frozen' | 'banned' | 'all';
+export type Statuses = 'pending' | 'accepted' | 'rejected' | 'frozen' | 'banned';
 
 export interface UserLogAction {
     doneBy: string; // discord ID (can be bot)
@@ -21,7 +24,6 @@ export interface UserLogAction {
 }
 
 export interface User {
-    _id?: ObjectId;
     minecraftLowercase: string; // for searching purposes
     minecraft: string; // case preserved
     discord: string;

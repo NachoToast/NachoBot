@@ -1,168 +1,192 @@
-import { Message, TextChannel } from 'discord.js';
+import { GuildMember, Message, TextChannel } from 'discord.js';
 import { Command, DiscordClient } from '../../../../interfaces/Command';
-import filterMessage, { discordIdTest } from '../../../../modules/mentionFilter.module';
-import { isValidUsername, verifiedUsername } from '../../../../modules/minecraft/whitelist/username';
-import { newApplicationEmbed } from '../../../../modules/minecraft/whitelist/embedConstructors';
-import { devMode, modules } from '../../../../config.json';
-import { makeNewApplication, getSingleDBUser } from '../../../../modules/minecraft/whitelist/databaseTools';
+import { discordIdTest, filterMentions, stripTagDecorations, tagsUser } from '../../../../modules/mentionFilter';
+import { getSingleDBUser, makeNewApplication } from '../../../../modules/minecraft/whitelist/databaseTools';
+import { getActualUsername, isValidUsername } from '../../../../modules/minecraft/whitelist/username';
 import { WhitelistValidator } from '../../../../modules/minecraft/whitelist/validation';
+import { WhitelistError } from '../constants/database';
+import DENIED_MESSAGES from '../constants/deniedMessages';
+import { devMode, modules } from '../../../../config.json';
+import { newApplicationEmbed } from '../../../../modules/minecraft/whitelist/embedConstructors';
 
 const notifyNew = modules.minecraft.whitelist.sendNewApplications;
 const feedChannel = devMode
     ? modules.minecraft.whitelist.newRequestFeedChannelDev
     : modules.minecraft.whitelist.newRequestFeedChannel;
 
-export const apply: Command = {
-    name: 'APPLY', // uppercase so its never actually called
-    execute: async ({
-        message,
+class Apply implements Command {
+    public name = 'APPLY'; // uppercase so it's never actually called
+
+    private commentFlag = 'c';
+    private onBehalfFlag = 'for';
+
+    public async execute({
         args,
         client,
         isAdmin,
+        message,
     }: {
-        message: Message;
         args: string[];
         client: DiscordClient;
         isAdmin: boolean;
-    }) => {
+        message: Message;
+    }) {
         if (!WhitelistValidator.applicationsOpen) {
-            message.channel.send(`Whitelist applications are currently suspended.`);
+            message.channel.send(WhitelistValidator.message());
             return;
         }
 
-        if (!args.length) {
-            message.channel.send(`Please specify your Minecraft username.`);
+        if (this.invalidUsername(message, args)) return;
+
+        const applicantDiscord = this.getOnBehalfOf(message, args, isAdmin);
+        if (!applicantDiscord) return;
+
+        const comment = this.getComment(message, args, isAdmin);
+        if (comment === false) return;
+
+        const minecraftUsername = await this.getVerifiedUsername(message, args[0]);
+        if (minecraftUsername === false) return;
+
+        const duplicateRequest = await this.applicationAlreadyExists(message, minecraftUsername, applicantDiscord.id);
+        if (duplicateRequest) return;
+
+        const submittedUser = await makeNewApplication(minecraftUsername, applicantDiscord.id, message.author.id, comment);
+
+        if (submittedUser instanceof WhitelistError) {
+            message.channel.send(submittedUser.message);
             return;
         }
 
-        // message.member is null if done in DMs instead of server channel
-        if (message.member === null) {
-            message.channel.send(`Please do this in the correct server.`);
-            return;
-        }
-
-        const rawMinecraftUsername = args[0];
-        let discordID = message.author.id;
-
-        let onBehalf = false;
-        const fromIndex = args.indexOf('f') + 1;
-        if (!!fromIndex) {
-            if (isAdmin) {
-                if (!!args[fromIndex]) {
-                    discordID = args[fromIndex].replace(/[<>!@]/g, '');
-                    if (discordIdTest.test(discordID)) {
-                        message.channel.send(`${discordID} is not a valid Discord ID.`);
-                        return;
-                    } else if (discordID === message.author.id) {
-                        message.channel.send(`You can't apply on behalf of yourself.`);
-                        return;
-                    }
-                    onBehalf = true;
-                    args.splice(fromIndex - 1, 2);
-                } else {
-                    message.channel.send(`Please specify a Discord ID or mention to whitelist as someone else.`);
-                    return;
-                }
-            } else {
-                message.react('❌');
-                return;
-            }
-        }
-
-        if (!isValidUsername(rawMinecraftUsername)) {
-            message.channel.send(`'${filterMessage(rawMinecraftUsername)}' is not a valid Minecraft username.`);
-            return;
-        }
-
-        const [isVerified, minecraftUsername] = await verifiedUsername(rawMinecraftUsername);
-
-        // check whitelist
-        if (!isVerified) {
-            // TODO: give info about player ticket?
-            if (minecraftUsername === 'Player is already whitelisted') {
-                message.channel.send(`Player '${rawMinecraftUsername}' is already whitelisted`);
-            } else if (minecraftUsername === 'That player does not exist') {
-                message.channel.send(`User '${rawMinecraftUsername}' does not exist.`);
-            } else if (minecraftUsername === 'Not connected') {
-                message.channel.send(`Server is currently down, please try again later.`);
-            } else {
-                // only other case is beginning with 'FATAL: '
-                console.log(minecraftUsername.slice(7));
-                message.channel.send(`An error occured, this should never happen. Please contact <@240312568273436674>`);
-            }
-            return;
-        }
-
-        // check db (since discordID could also be already used)
-        const existingDbUser = await getSingleDBUser(discordID, rawMinecraftUsername);
-        if (existingDbUser === undefined) {
-            message.channel.send(`Error occured querying database, please contact <@240312568273436674>`);
-            return;
-        }
-
-        if (existingDbUser !== null) {
-            if (existingDbUser.discord === discordID) {
-                message.channel.send(
-                    `You already have an application linked to Minecraft user '${existingDbUser.minecraft}', you can view its status with \`neko whitelist status\``
-                );
-            } else {
-                message.channel.send(`Minecraft user '${minecraftUsername}' has already applied via another Discord account.`);
-            }
-            return;
-        }
-
-        // (if on behalf) check user specified is in valid Discord server & not a bot
-        let userDiscord = message.member;
-        if (onBehalf) {
-            const possibleUser = (message.channel as TextChannel).guild.members.cache.get(discordID);
-            if (!possibleUser) {
-                message.channel.send(`That user is not in this server.`);
-                return;
-            }
-            if (possibleUser.user.bot) {
-                message.channel.send(`That user is a bot.`);
-                return;
-            }
-            userDiscord = possibleUser;
-        }
-
-        let comment = onBehalf ? 'Applied on their behalf' : 'Initial application';
-        // if comment parameter specified, use it instead of default comment
-        const commentIndex = args.indexOf('c') + 1;
-        if (!!commentIndex) {
-            if (isAdmin) {
-                if (!!args[commentIndex]) {
-                    comment = args.slice(commentIndex).join(' ');
-                } else {
-                    message.channel.send(`Please specify a comment.`);
-                    return;
-                }
-            } else {
-                message.react('❌');
-                return;
-            }
-        }
-
-        const newUser = await makeNewApplication(minecraftUsername, discordID, comment, onBehalf ? message.author.id : false);
-        if (!newUser) {
-            message.channel.send(`Error occured making database entry, please contact <@240312568273436674>`);
-            return;
-        }
-
-        message.channel.send(
-            `Successfully submitted a whitelist application for '${minecraftUsername}'${
-                onBehalf ? ` on behalf of <@${discordID}>` : ''
-            }.`
-        );
+        message.channel.send(`Successfully submitted a whitelist application linked to user '${submittedUser.minecraft}'.`);
 
         if (notifyNew) {
+            // TODO: move this to its own module :)
             const outputChannel = client.channels.cache.get(feedChannel) as TextChannel | undefined;
 
             if (!!outputChannel) {
-                const embed = newApplicationEmbed(outputChannel, newUser, userDiscord);
+                const embed = newApplicationEmbed(submittedUser, applicantDiscord);
                 outputChannel.send({ embeds: [embed] });
             }
         }
-    },
-};
-// TODO: make this 1 big class definition instead
+    }
+
+    /** Returns `true` if the username is invalid, `false` otherwise. */
+    private invalidUsername(message: Message, args: string[]) {
+        if (!args.length) {
+            message.channel.send(`Please specify a Minecraft username, e.g. \`neko whitelist NachoToast\``);
+            return true;
+        }
+        if (!isValidUsername(args[0])) {
+            DENIED_MESSAGES.INVALID_MINECRAFT_USERNAME(message, args[0]);
+            return true;
+        }
+
+        return false;
+    }
+
+    /** Returns the GuildMember who is the subject of the application, or `false` if invalid. */
+    private getOnBehalfOf(message: Message, args: string[], isAdmin: boolean) {
+        const attemptedOnBehalf = args.indexOf(this.onBehalfFlag) + 1;
+        if (!attemptedOnBehalf) return message.member as GuildMember;
+        if (!isAdmin) {
+            DENIED_MESSAGES.NO_PERMISSION(message);
+            return false;
+        }
+        if (!args[attemptedOnBehalf]) {
+            DENIED_MESSAGES.NOT_SPECIFIED_USER(message);
+            return false;
+        }
+
+        if (!discordIdTest.test(args[attemptedOnBehalf]) && !tagsUser.test(args[attemptedOnBehalf])) {
+            DENIED_MESSAGES.INVALID_DISCORD_ID(message, args[attemptedOnBehalf]);
+            return false;
+        }
+
+        const applicantDiscordID = stripTagDecorations(args[attemptedOnBehalf]);
+
+        if (applicantDiscordID === message.author.id) {
+            DENIED_MESSAGES.ID_IS_YOURS(message);
+            return false;
+        }
+
+        const applicantGuildMember = (message.channel as TextChannel).guild.members.cache.get(applicantDiscordID);
+
+        if (!applicantGuildMember) {
+            DENIED_MESSAGES.NOT_IN_SERVER(message, applicantDiscordID);
+            return false;
+        }
+
+        if (applicantGuildMember.user.bot) {
+            DENIED_MESSAGES.IS_BOT(message, applicantDiscordID);
+            return false;
+        }
+
+        return applicantGuildMember;
+    }
+
+    /** Gets the comment specified if applicable, or `false` if invalid. */
+    private getComment(message: Message, args: string[], isAdmin: boolean) {
+        const attemptedComment = args.indexOf(this.commentFlag) + 1;
+        if (!attemptedComment) return;
+        if (!isAdmin) {
+            DENIED_MESSAGES.NO_PERMISSION(message);
+            return false;
+        }
+        if (!args[attemptedComment]) {
+            DENIED_MESSAGES.NOT_SPECIFIED_COMMENT(message);
+            return false;
+        }
+
+        const behalfIndex = args.indexOf(this.onBehalfFlag) + 1;
+        if (!behalfIndex) {
+            DENIED_MESSAGES.COMMENT_BUT_NO_BEHALF(message);
+            return false;
+        }
+
+        if (behalfIndex > attemptedComment) {
+            DENIED_MESSAGES.COMMENT_NOT_END_ARG(message);
+            return false;
+        }
+
+        return args.slice(attemptedComment).join(' ');
+    }
+
+    /** Returns `false` if the username is nonexistant, already whitelisted, or some other error,
+     * otherwise it returns the case sensitive Minecraft username. */
+    private async getVerifiedUsername(message: Message, username: string) {
+        const [success, actualUsername] = await getActualUsername(username);
+
+        if (success) return actualUsername;
+
+        message.channel.send(actualUsername);
+        return false;
+    }
+
+    /** Returns `true` if an entry with that Minecraft username or Discord ID already exists, `false` otherwise. */
+    private async applicationAlreadyExists(message: Message, minecraft: string, discord: string) {
+        console.log(minecraft, discord);
+        const [existingMC, existingDiscord] = await Promise.all([getSingleDBUser(minecraft), getSingleDBUser(discord)]);
+
+        if (existingDiscord instanceof WhitelistError) {
+            message.channel.send(existingDiscord.message);
+            return true;
+        }
+        if (existingMC instanceof WhitelistError) {
+            message.channel.send(existingMC.message);
+            return true;
+        }
+
+        if (!!existingDiscord) {
+            DENIED_MESSAGES.DISCORD_TAKEN(message, discord, existingDiscord.minecraft);
+            return true;
+        }
+        if (!!existingMC) {
+            DENIED_MESSAGES.MINECRAFT_TAKEN(message, minecraft);
+            return true;
+        }
+
+        return false;
+    }
+}
+
+export const apply = new Apply();

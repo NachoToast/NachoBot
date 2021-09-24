@@ -2,7 +2,7 @@ import { Client, Collection } from 'discord.js';
 import fs from 'fs';
 import { modules, disableAllModules } from '../config.json';
 import { Command, DiscordClient } from '../interfaces/Command';
-import intents from '../modules/intents.module';
+import intents from '../modules/intents';
 
 interface StringIndexedObject {
     [index: string]: any;
@@ -146,7 +146,7 @@ class Module {
         });
     }
 
-    private static fileValidator = new RegExp('^.*(?:ts|js)$');
+    private static fileValidator = new RegExp(/^.*\.(?:ts|js)$/);
 
     private findFiles() {
         try {
@@ -168,6 +168,7 @@ class Module {
 
             this.files = newFiles;
         } catch (error) {
+            console.log(error);
             fs.appendFileSync(this.logFile, `\n[${new Date().toLocaleTimeString()}] ${error}`);
         } finally {
             Promise.all(this.submodules.map((e) => e.promiseFindFiles()));
@@ -189,6 +190,7 @@ class Module {
                     if (!!imports[payload]?.numSubCommands) this.numSubCommands += imports[payload].numSubCommands;
                 }
             } catch (error) {
+                console.log(error);
                 if (error instanceof Error) {
                     // if error, only get brief message, not entire stack trace
                     fs.appendFileSync(

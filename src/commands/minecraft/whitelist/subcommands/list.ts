@@ -1,60 +1,50 @@
-import { Message, MessageEmbed } from 'discord.js';
+import { Message } from 'discord.js';
 import { Command } from '../../../../interfaces/Command';
 import { Statuses } from '../../../../models/user';
-import filterMessage from '../../../../modules/mentionFilter.module';
 import { searchApplications } from '../../../../modules/minecraft/whitelist/databaseTools';
-import { applicationInfoEmbed, massStatusEmbed } from '../../../../modules/minecraft/whitelist/embedConstructors';
+import { massStatusEmbed } from '../../../../modules/minecraft/whitelist/embedConstructors';
+import { maxApplicationsPerPage, WhitelistError } from '../constants/database';
+import DENIED_MESSAGES from '../constants/deniedMessages';
 
 class List implements Command {
     public name = 'list';
     public aliases = ['l'];
 
-    public async execute({ message, args, isAdmin }: { message: Message; args: string[]; isAdmin: boolean }) {
+    public async execute({ args, isAdmin, message }: { args: string[]; isAdmin: boolean; message: Message }) {
+        if (!isAdmin) {
+            DENIED_MESSAGES.NO_PERMISSION(message);
+            return;
+        }
         args.splice(0, 1);
 
-        if (!isAdmin) {
-            message.react('❌');
-            return;
-        }
+        const status = args[0] as Statuses | undefined;
 
-        let searchStatus: Statuses = 'pending';
-        let searchPage = 1;
-        if (!!args.length) {
-            searchStatus = args[0].toLowerCase() as Statuses;
-            if (!!args[1]) {
-                if (Number.isInteger(Number(args[1]))) searchPage = parseInt(args[1]);
-                else {
-                    message.channel.send(`${filterMessage(args[1])} is an invalid page number.`);
-                    return;
-                }
+        let page = undefined;
+        if (!!args[1]) {
+            if (!Number.isInteger(args[1])) {
+                message.channel.send(`Please enter a valid page number.`);
+                return;
             }
+            page = parseInt(args[1]);
         }
 
-        const results = await searchApplications(searchStatus, searchPage);
-        if (results === undefined) {
-            message.channel.send(`Error occured querying database, please contact <@240312568273436674>`);
-            return;
-        } else if (results === null) {
-            message.channel.send(`No ${filterMessage(searchStatus)} applications found.`);
-            return;
-        } else {
-            if (results.applications.length <= 2) {
-                const embeds: MessageEmbed[] = [];
-                for (const result of results.applications) {
-                    embeds.push(applicationInfoEmbed(message, result));
-                }
-                message.channel.send({ embeds });
-            } else {
-                const embed = massStatusEmbed(results.applications, results.total, searchStatus, searchPage, 20);
-                message.channel.send({ embeds: [embed] });
-            }
-        }
-    }
+        const applicationsFound = await searchApplications({ status, page });
 
-    public async help({ message }: { message: Message }) {
-        message.channel.send(
-            `List applications (optionally) by status (default pending) and page number(default 1).\nUsage: \`neko whitelist list <status | all?> <page?>\`\nAdmin only.`
-        );
+        if (applicationsFound instanceof WhitelistError) {
+            message.channel.send(applicationsFound.message);
+            return;
+        }
+
+        if (!applicationsFound) {
+            DENIED_MESSAGES.NONE_FOUND(message, status);
+            return;
+        }
+
+        message.channel.send({
+            embeds: [
+                massStatusEmbed(applicationsFound.applications, applicationsFound.total, page, maxApplicationsPerPage, status),
+            ],
+        });
     }
 }
 

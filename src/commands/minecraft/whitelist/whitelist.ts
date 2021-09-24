@@ -6,10 +6,10 @@ if (!modules.minecraft.rcon.enabled) {
     throw new Error('RCON must be enabled for whitelist submodule to work.');
 }
 
-import minecraftServer from '../../../modules/minecraft/rcon.module';
+import minecraftServer from '../../../modules/minecraft/rcon';
 
 import loadSubCommands from '../../../helpers/commandModuleHelper';
-import filterMessage from '../../../modules/mentionFilter.module';
+import { filterMentions } from '../../../modules/mentionFilter';
 
 // subcommand importing
 import { help } from './subcommands/help';
@@ -25,7 +25,7 @@ import { reject } from './subcommands/reject';
 
 const [whitelistCommands, whitelistCommandAliases] = loadSubCommands([
     apply,
-    help,
+    // help,
     remove,
     status,
     suspend,
@@ -42,9 +42,15 @@ class Whitelist implements Command {
     public commands = whitelistCommands;
     public commandAliases = whitelistCommandAliases;
     public numSubCommands = this.commands.size;
+
     public async execute(params: Params, helpMode = false) {
         if (!minecraftServer.isConnected() && !helpMode) {
             params.message.channel.send(`Could not connect to Minecraft server, please try again later.`);
+            return;
+        }
+        if (params.message.channel.type !== 'GUILD_TEXT') {
+            // make sure its a GuildTextChannel, otherwise might not be able to access GuildMembers from cache later on
+            params.message.channel.send(`Whitelist-related commands only work in server text channels.`);
             return;
         }
 
@@ -59,10 +65,10 @@ class Whitelist implements Command {
         if (!foundCommand) {
             if (!!params.args.length && helpMode) {
                 // e.g. neko help whitelist a_nonexistant_arg
-                params.message.channel.send(`Subcommand '${filterMessage(params.args[0])}' does not exist.`);
+                params.message.channel.send(`Subcommand '${filterMentions(params.args[0])}' does not exist.`);
             } else if (helpMode) {
                 // e.g. neko help whitelist
-                (this.commands.get('help') as CommandWithHelp).help(fullParams);
+                // (this.commands.get('help') as CommandWithHelp).help(fullParams);
             } else {
                 // e.g. neko whitelist
                 this.commands.get('APPLY')?.execute(fullParams);
@@ -76,6 +82,7 @@ class Whitelist implements Command {
             else params.message.channel.send(`No help found for '${foundCommand.name}' subcommand.`);
         }
     }
+
     public async help(params: Params) {
         params.args.splice(0, 1);
         this.execute(params, true);

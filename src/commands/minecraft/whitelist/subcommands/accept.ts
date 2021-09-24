@@ -1,106 +1,116 @@
 import { Message, TextChannel } from 'discord.js';
 import { Command, DiscordClient } from '../../../../interfaces/Command';
-import filterMessage, { removeUserTags, tagsUser } from '../../../../modules/mentionFilter.module';
-import { isValidUsername } from '../../../../modules/minecraft/whitelist/username';
+import { makeLogItem, updateApplicationStatus } from '../../../../modules/minecraft/whitelist/databaseTools';
+import { searchTypeAndTerm } from '../../../../modules/minecraft/whitelist/username';
+import { WhitelistError } from '../constants/database';
 import { devMode, modules } from '../../../../config.json';
-import { acceptApplication } from '../../../../modules/minecraft/whitelist/databaseTools';
+import DENIED_MESSAGES from '../constants/deniedMessages';
 import moment from 'moment';
-import minecraftServer from '../../../../modules/minecraft/rcon.module';
+import minecraftServer from '../../../../modules/minecraft/rcon';
+import { WhitelistValidator } from '../../../../modules/minecraft/whitelist/validation';
 
 const notifyAccepted = modules.minecraft.whitelist.sendAcceptedApplications;
 const feedChannel = devMode
     ? modules.minecraft.whitelist.acceptedRequestFeedChannelDev
     : modules.minecraft.whitelist.acceptedRequestFeedChannel;
 
-export const accept: Command = {
-    name: 'accept',
-    aliases: ['a'],
-    execute: async ({
-        message,
+class Accept implements Command {
+    public name = 'accept';
+    public aliases = ['a'];
+
+    private reasonFlag = 'r';
+
+    public async execute({
         args,
         client,
         isAdmin,
+        message,
     }: {
-        message: Message;
         args: string[];
         client: DiscordClient;
         isAdmin: boolean;
-    }) => {
+        message: Message;
+    }) {
         if (!isAdmin) {
-            message.react('❌');
+            DENIED_MESSAGES.NO_PERMISSION(message);
+            return;
+        }
+
+        if (!WhitelistValidator.applicationsOpen) {
+            message.channel.send(WhitelistValidator.message());
             return;
         }
         args.splice(0, 1);
 
         if (!args.length) {
-            message.channel.send(`Please specify a Minecraft username or Discord user.`);
+            DENIED_MESSAGES.NOT_SPECIFIED_USER(message);
             return;
         }
 
-        let searchTerm = message.author.id;
-        let searchType: 'discord' | 'minecraft' = 'discord';
-        if (!!args.length) {
-            if (tagsUser.test(args[0])) {
-                searchTerm = removeUserTags(args[0]);
-            } else if (isValidUsername(args[0])) {
-                searchTerm = args[0];
-                searchType = 'minecraft';
-            } else {
-                message.channel.send(`${filterMessage(args[0])} is not a valid Minecraft username or Discord user.`);
-                return;
-            }
-        }
+        const [searchType, searchTerm] = searchTypeAndTerm(args[0]);
 
-        // (if on behalf) check user specified is in valid Discord server & not a bot
-        let comment: string | undefined;
-        // if comment parameter specified, use it instead of default comment
-        const commentIndex = args.indexOf('c') + 1;
-        if (!!commentIndex) {
-            if (!!args[commentIndex]) {
-                comment = args.slice(commentIndex).join(' ');
-            } else {
-                message.channel.send(`Please specify a comment.`);
-                return;
-            }
-        }
-
-        const updatedUser = await acceptApplication(searchTerm, message.author.id, comment);
-        if (updatedUser === undefined) {
-            message.channel.send(`Error occured querying database, please contact <@240312568273436674>`);
-            return;
-        } else if (updatedUser === null) {
-            message.channel.send(
-                `Couldn't find a pending request linked ${searchType === 'discord' ? `<@${searchTerm}>` : searchTerm}`
-            );
+        if (searchType === 'invalid') {
+            DENIED_MESSAGES.INVALID_EITHER(message, args[0]);
             return;
         }
 
-        const didActuallyUpdate = await minecraftServer.executeCommand(`whitelist add ${updatedUser.minecraft}`);
-        if (didActuallyUpdate !== `Added ${updatedUser.minecraft} to the whitelist`) {
-            message.channel.send(`Encountered error executing whitelist command:\n\`\`\`${didActuallyUpdate}\`\`\``);
-            // TODO: update db user when this occurs
+        const reason = this.getReason(message, args);
+        if (reason === false) return;
+
+        const newUserLog = makeLogItem(message.author.id, 'accepted', reason);
+
+        const acceptedUser = await updateApplicationStatus(searchTerm, newUserLog, 'accepted', 'pending');
+
+        if (acceptedUser instanceof WhitelistError) {
+            message.channel.send(acceptedUser.message);
             return;
         }
 
-        message.react('✅');
+        if (!acceptedUser) {
+            DENIED_MESSAGES.NOT_FOUND(message, searchType, searchTerm, 'pending');
+            return;
+        }
+
+        const doWhitelist = await minecraftServer.executeCommand(`whitelist add ${acceptedUser.minecraft}`);
+        switch (doWhitelist) {
+            case 'ERROR':
+            case 'Not connected':
+            case 'That player does not exist':
+                message.channel.send(`${doWhitelist}, this should never happen, please contact <@240312568273436674>`);
+                break;
+            case 'Player is already whitelisted':
+                message.channel.send(`Player was already whitelisted.`);
+                break;
+            default:
+                message.react('✅');
+        }
 
         if (notifyAccepted) {
             const outputChannel = client.channels.cache.get(feedChannel) as TextChannel | undefined;
 
             if (!!outputChannel) {
-                // TODO: maybe make this a nicely formatted embed?
-                outputChannel.send(
-                    `${updatedUser.minecraft} (<@${updatedUser.discord}>) has been added to the whitelist by <@${
+                // TODO: move this to its own module, and message constant for this
+                message.channel.send(
+                    `${acceptedUser.minecraft} (<@${acceptedUser.discord}>) has been added to the whitelist by <@${
                         message.author.id
-                    }> after ${moment(updatedUser.applied).fromNow()}.`
+                    }> after ${moment(acceptedUser.applied).fromNow(true)}.`
                 );
             }
         }
-    },
-    help: async ({ message }: { message: Message }) => {
-        message.channel.send(
-            `Accepts a whitelist application, adding the user to the server.\nUsage: \`neko whitelist accept <minecraft | discord>\`\nAdmin only.`
-        );
-    },
-};
-// TODO: make this 1 big class definition instead
+    }
+
+    /** Gets the reason specified if applicable, or `false` if invalid. */
+    private getReason(message: Message, args: string[]) {
+        const attemptedReason = args.indexOf(this.reasonFlag) + 1;
+        if (!attemptedReason) return;
+        if (!args[attemptedReason]) {
+            DENIED_MESSAGES.NOT_SPECIFIED_REASON(message);
+            return false;
+        }
+
+        return args.slice(attemptedReason).join(' ');
+    }
+}
+
+export const accept = new Accept();
+// TODO: allow accepting of any account status, not just pending

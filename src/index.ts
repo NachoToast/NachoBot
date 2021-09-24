@@ -4,7 +4,7 @@ import * as config from './config.json';
 import { blacklistedUsers } from './blacklistedUsers.json';
 import { Command, Params, DiscordClient } from './interfaces/Command';
 import { Message } from 'discord.js';
-import filterMessage from './modules/mentionFilter.module';
+import { filterMentions } from './modules/mentionFilter';
 import createClient from './helpers/moduleLoader';
 
 const client: DiscordClient = createClient();
@@ -37,7 +37,7 @@ client.on('messageCreate', async (message: Message) => {
         client.commands.get(command.toLowerCase()) ?? client.commands.get(client.commandAliases[command.toLowerCase()]);
 
     if (!foundCommand) {
-        if (config.devMode) message.channel.send(`Command '${filterMessage(command)}' not found.`);
+        if (config.devMode) message.channel.send(`Command '${filterMentions(command)}' not found.`);
         return;
     }
 
@@ -59,7 +59,7 @@ client.on('messageCreate', async (message: Message) => {
                 client.commands.get(args[0].toLowerCase()) ?? client.commands.get(client.commandAliases[args[0].toLowerCase()]);
 
             if (!foundCommand) {
-                message.channel.send(`Command '${filterMessage(args[0])}' not found.`);
+                message.channel.send(`Command '${filterMentions(args[0])}' not found.`);
             } else if (!foundCommand?.help) {
                 message.channel.send(`No help found for '${foundCommand.name}' command.`);
             } else foundCommand.help({ ...params });

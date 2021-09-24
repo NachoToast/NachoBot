@@ -1,72 +1,65 @@
 import { Message, TextChannel } from 'discord.js';
 import { Command, DiscordClient } from '../../../../interfaces/Command';
-import { devMode, modules } from '../../../../config.json';
+import { filterMentions } from '../../../../modules/mentionFilter';
 import { WhitelistValidator } from '../../../../modules/minecraft/whitelist/validation';
+import DENIED_MESSAGES from '../constants/deniedMessages';
+import { devMode, modules } from '../../../../config.json';
 
-const notifyNew = modules.minecraft.whitelist.sendNewApplications;
+const notifyAccepted = modules.minecraft.whitelist.sendAcceptedApplications;
 const feedChannel = devMode
-    ? modules.minecraft.whitelist.newRequestFeedChannelDev
-    : modules.minecraft.whitelist.newRequestFeedChannel;
+    ? modules.minecraft.whitelist.acceptedRequestFeedChannelDev
+    : modules.minecraft.whitelist.acceptedRequestFeedChannel;
 
-export const suspend: Command = {
-    name: 'suspend',
-    execute: async ({
-        message,
+class Suspend implements Command {
+    public name = 'suspend';
+
+    public async execute({
         args,
         client,
         isAdmin,
+        message,
     }: {
-        message: Message;
         args: string[];
         client: DiscordClient;
         isAdmin: boolean;
-    }) => {
+        message: Message;
+    }) {
         args.splice(0, 1);
-
         if (!args.length) {
-            message.channel.send(
-                `Whitelist applications are ${WhitelistValidator.applicationsOpen ? '**not** ' : ''}currently suspended.`
-            );
+            message.channel.send(WhitelistValidator.message());
             return;
         }
 
         if (!isAdmin) {
-            message.react('❌');
+            DENIED_MESSAGES.NO_PERMISSION(message);
             return;
         }
 
-        if (args.includes('on')) {
+        if (args[0].toLowerCase() === 'on') {
             if (!WhitelistValidator.applicationsOpen) {
-                message.channel.send(`Whitelist applications are already suspended.`);
+                message.channel.send(`Applications are already suspended.`);
                 return;
             }
             WhitelistValidator.applicationsOpen = false;
-        } else if (args.includes('off')) {
+        } else if (args[0].toLowerCase() === 'off') {
             if (WhitelistValidator.applicationsOpen) {
-                message.channel.send(`Whitelist applications aren't currently suspended.`);
+                message.channel.send(`Applications are already open.`);
                 return;
             }
             WhitelistValidator.applicationsOpen = true;
         } else {
-            message.channel.send('Invalid argument, should be either on or off.');
+            message.channel.send(`Unrecognized argument, '${filterMentions(args[0])}'`);
             return;
         }
 
-        if (notifyNew) {
+        if (notifyAccepted) {
             const outputChannel = client.channels.cache.get(feedChannel) as TextChannel | undefined;
+
             if (!!outputChannel) {
-                outputChannel.send(
-                    `Whitelist applications have been turned **${WhitelistValidator.applicationsOpen ? 'off' : 'on'}** by <@${
-                        message.author.id
-                    }>`
-                );
+                message.channel.send(WhitelistValidator.message());
             }
         }
-    },
-    help: async ({ message }: { message: Message }) => {
-        message.channel.send(
-            `Suspends all whitelist applications and whitelist application-related actions. If you don't specify 'on' or 'off' will return current suspension status.\nUsage: \`neko whitelist suspend <on|off?>\`\nAdmin only.`
-        );
-    },
-};
-// TODO: make this 1 big class definition instead
+    }
+}
+
+export const suspend = new Suspend();

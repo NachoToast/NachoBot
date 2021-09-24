@@ -1,62 +1,42 @@
 import { Message } from 'discord.js';
 import { Command } from '../../../../interfaces/Command';
-import filterMessage, { removeUserTags, tagsUser } from '../../../../modules/mentionFilter.module';
 import { getSingleDBUser } from '../../../../modules/minecraft/whitelist/databaseTools';
 import { applicationInfoEmbed } from '../../../../modules/minecraft/whitelist/embedConstructors';
-import { isValidUsername } from '../../../../modules/minecraft/whitelist/username';
+import { searchTypeAndTerm } from '../../../../modules/minecraft/whitelist/username';
+import { WhitelistError } from '../constants/database';
+import DENIED_MESSAGES from '../constants/deniedMessages';
 
 class Info implements Command {
     public name = 'info';
     public aliases = ['i'];
 
-    public async execute({ message, args, isAdmin }: { message: Message; args: string[]; isAdmin: boolean }) {
+    public async execute({ args, isAdmin, message }: { args: string[]; isAdmin: boolean; message: Message }) {
+        if (!isAdmin) {
+            DENIED_MESSAGES.NO_PERMISSION(message);
+            return;
+        }
         args.splice(0, 1);
 
-        if (!isAdmin) {
-            message.react('❌');
+        const [searchType, searchTerm] = searchTypeAndTerm(args[0] ?? message.author.id);
+
+        if (searchType === 'invalid') {
+            DENIED_MESSAGES.INVALID_EITHER(message, args[0] ?? message.author.id);
             return;
         }
 
-        let searchTerm = message.author.id;
-        let searchType: 'discord' | 'minecraft' = 'discord';
-        if (!!args.length) {
-            if (tagsUser.test(args[0])) {
-                searchTerm = removeUserTags(args[0]);
-            } else if (isValidUsername(args[0])) {
-                searchTerm = args[0];
-                searchType = 'minecraft';
-            } else {
-                message.channel.send(`${filterMessage(args[0])} is not a valid Minecraft username or Discord user.`);
-                return;
-            }
+        const existingUser = await getSingleDBUser(searchTerm);
+
+        if (existingUser instanceof WhitelistError) {
+            message.channel.send(existingUser.message);
+            return;
         }
 
-        const existingDbUser = await getSingleDBUser(searchTerm, searchTerm);
-        if (existingDbUser === undefined) {
-            message.channel.send(`Error occured querying database, please contact <@240312568273436674>`);
-            return;
-        } else if (existingDbUser === null) {
-            message.channel.send(
-                `Couldn't find any applications linked to ${
-                    searchTerm === message.author.id ? 'you' : searchType === 'discord' ? `<@${searchTerm}>` : searchTerm
-                }.`
-            );
-            return;
-        } else {
-            const embed = applicationInfoEmbed(message, existingDbUser);
-            message.channel.send({ embeds: [embed] });
+        if (!existingUser) {
+            DENIED_MESSAGES.NOT_FOUND(message, searchType, searchTerm, undefined);
             return;
         }
-    }
 
-    public async help({ message, isAdmin }: { message: Message; isAdmin: boolean }) {
-        if (!isAdmin) {
-            message.react('❌');
-            return;
-        }
-        message.channel.send(
-            `Get information about a whitelist application, includes vetting info.\nUsage: \`neko whitelist info <username|id?>\`\nAdmin only.`
-        );
+        message.channel.send({ embeds: [applicationInfoEmbed(message, existingUser)] });
     }
 }
 

@@ -2,14 +2,8 @@ import mongoose from 'mongoose';
 import fs from 'fs';
 import { Rcon } from 'rcon-client';
 import { modules } from '../../config.json';
-import { EventEmitter } from 'stream';
 
 const { host, port, password, retryConnectionOnFail, checkInterval } = modules.minecraft.rcon;
-
-export interface RconInstance {
-    connected: boolean;
-    rcon: Rcon;
-}
 
 class MinecraftServer {
     private connected = false;
@@ -103,6 +97,7 @@ class MinecraftServer {
 
     public isConnected = () => this.connected;
 
+    /** Tries to execute a command on the remove Minecraft server, returns `ERROR` on error. */
     public async executeCommand(command: string) {
         try {
             const output = await this.instance.send(command);
@@ -110,10 +105,10 @@ class MinecraftServer {
         } catch (error) {
             if (error instanceof Error) {
                 this.log(error.message);
-                return error.message;
+                return 'ERROR';
             } else {
                 this.log(`${error}`);
-                return `${error}`;
+                return `ERROR`;
             }
         }
     }
