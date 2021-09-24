@@ -10,7 +10,7 @@ class Info implements Command {
     public aliases = ['i'];
 
     public async execute({ message, args, isAdmin }: { message: Message; args: string[]; isAdmin: boolean }) {
-        args.splice(0, 1); // remove 's' from args
+        args.splice(0, 1);
 
         if (!isAdmin) {
             message.react('❌');

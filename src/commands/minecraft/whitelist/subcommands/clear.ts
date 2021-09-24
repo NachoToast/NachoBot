@@ -1,5 +1,5 @@
 import { Message } from 'discord.js';
-import { Command, DiscordClient } from '../../../../interfaces/Command';
+import { Command } from '../../../../interfaces/Command';
 import filterMessage, { removeUserTags, tagsUser } from '../../../../modules/mentionFilter.module';
 import { isValidUsername } from '../../../../modules/minecraft/whitelist/username';
 import { getSingleDBUser, removeEntry } from '../../../../modules/minecraft/whitelist/databaseTools';

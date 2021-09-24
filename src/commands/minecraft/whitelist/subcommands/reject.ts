@@ -1,18 +1,10 @@
 import { Message, TextChannel } from 'discord.js';
 import { Command, DiscordClient } from '../../../../interfaces/Command';
-import filterMessage, { discordIdTest, removeUserTags, tagsUser } from '../../../../modules/mentionFilter.module';
-import { isValidUsername, verifiedUsername } from '../../../../modules/minecraft/whitelist/username';
-import { newApplicationEmbed } from '../../../../modules/minecraft/whitelist/embedConstructors';
+import filterMessage, { removeUserTags, tagsUser } from '../../../../modules/mentionFilter.module';
+import { isValidUsername } from '../../../../modules/minecraft/whitelist/username';
 import { devMode, modules } from '../../../../config.json';
-import {
-    makeNewApplication,
-    getSingleDBUser,
-    acceptApplication,
-    rejectApplication,
-} from '../../../../modules/minecraft/whitelist/databaseTools';
-import { WhitelistValidator } from '../../../../modules/minecraft/whitelist/validation';
+import { rejectApplication } from '../../../../modules/minecraft/whitelist/databaseTools';
 import moment from 'moment';
-import minecraftServer from '../../../../modules/minecraft/rcon.module';
 
 const notifyRejected = modules.minecraft.whitelist.sendRejectedApplications;
 const feedChannel = devMode
@@ -20,7 +12,7 @@ const feedChannel = devMode
     : modules.minecraft.whitelist.rejectedRequestFeedChannel;
 
 export const reject: Command = {
-    name: 'reject', // uppercase so its never actually called
+    name: 'reject',
     execute: async ({
         message,
         args,

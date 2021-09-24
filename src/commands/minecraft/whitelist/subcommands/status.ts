@@ -10,7 +10,7 @@ class Status implements Command {
     public aliases = ['s'];
 
     public async execute({ message, args }: { message: Message; args: string[] }) {
-        args.splice(0, 1); // remove 's' from args
+        args.splice(0, 1);
 
         let searchTerm = message.author.id;
         let searchType: 'discord' | 'minecraft' = 'discord';
@@ -36,7 +36,6 @@ class Status implements Command {
                     searchTerm === message.author.id ? 'you' : searchType === 'discord' ? `<@${searchTerm}>` : searchTerm
                 }.`
             );
-            return;
         } else {
             const embed = applicationStatusEmbed(message, existingDbUser);
             message.channel.send({ embeds: [embed] });

@@ -9,7 +9,7 @@ const feedChannel = devMode
     : modules.minecraft.whitelist.newRequestFeedChannel;
 
 export const suspend: Command = {
-    name: 'suspend', // uppercase so its never actually called
+    name: 'suspend',
     execute: async ({
         message,
         args,

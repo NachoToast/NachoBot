@@ -8,7 +8,7 @@ class Remove implements Command {
     public aliases = ['r'];
 
     public async execute({ message, args, isAdmin }: { message: Message; args: string[]; isAdmin: boolean }) {
-        args.splice(0, 1); // remove 'r' from args
+        args.splice(0, 1);
 
         if (!WhitelistValidator.applicationsOpen) {
             message.channel.send(`Whitelist applications are currently suspended, this also includes removals.`);

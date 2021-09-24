@@ -1,18 +1,16 @@
 import { Message, MessageEmbed } from 'discord.js';
-import moment from 'moment';
 import { Command } from '../../../../interfaces/Command';
 import { Statuses } from '../../../../models/user';
-import filterMessage, { removeUserTags, tagsUser } from '../../../../modules/mentionFilter.module';
-import { getSingleDBUser, searchApplications } from '../../../../modules/minecraft/whitelist/databaseTools';
+import filterMessage from '../../../../modules/mentionFilter.module';
+import { searchApplications } from '../../../../modules/minecraft/whitelist/databaseTools';
 import { applicationInfoEmbed, massStatusEmbed } from '../../../../modules/minecraft/whitelist/embedConstructors';
-import { isValidUsername } from '../../../../modules/minecraft/whitelist/username';
 
 class List implements Command {
     public name = 'list';
     public aliases = ['l'];
 
     public async execute({ message, args, isAdmin }: { message: Message; args: string[]; isAdmin: boolean }) {
-        args.splice(0, 1); // remove 's' from args
+        args.splice(0, 1);
 
         if (!isAdmin) {
             message.react('❌');

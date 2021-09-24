@@ -1,11 +1,9 @@
 import { Message, TextChannel } from 'discord.js';
 import { Command, DiscordClient } from '../../../../interfaces/Command';
-import filterMessage, { discordIdTest, removeUserTags, tagsUser } from '../../../../modules/mentionFilter.module';
-import { isValidUsername, verifiedUsername } from '../../../../modules/minecraft/whitelist/username';
-import { newApplicationEmbed } from '../../../../modules/minecraft/whitelist/embedConstructors';
+import filterMessage, { removeUserTags, tagsUser } from '../../../../modules/mentionFilter.module';
+import { isValidUsername } from '../../../../modules/minecraft/whitelist/username';
 import { devMode, modules } from '../../../../config.json';
-import { makeNewApplication, getSingleDBUser, acceptApplication } from '../../../../modules/minecraft/whitelist/databaseTools';
-import { WhitelistValidator } from '../../../../modules/minecraft/whitelist/validation';
+import { acceptApplication } from '../../../../modules/minecraft/whitelist/databaseTools';
 import moment from 'moment';
 import minecraftServer from '../../../../modules/minecraft/rcon.module';
 
@@ -15,7 +13,7 @@ const feedChannel = devMode
     : modules.minecraft.whitelist.acceptedRequestFeedChannel;
 
 export const accept: Command = {
-    name: 'accept', // uppercase so its never actually called
+    name: 'accept',
     aliases: ['a'],
     execute: async ({
         message,
@@ -32,7 +30,6 @@ export const accept: Command = {
             message.react('❌');
             return;
         }
-
         args.splice(0, 1);
 
         if (!args.length) {
@@ -81,7 +78,7 @@ export const accept: Command = {
         const didActuallyUpdate = await minecraftServer.executeCommand(`whitelist add ${updatedUser.minecraft}`);
         if (didActuallyUpdate !== `Added ${updatedUser.minecraft} to the whitelist`) {
             message.channel.send(`Encountered error executing whitelist command:\n\`\`\`${didActuallyUpdate}\`\`\``);
-            // todo: update db user when this occurs
+            // TODO: update db user when this occurs
             return;
         }
 
