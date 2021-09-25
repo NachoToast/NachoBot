@@ -1,6 +1,6 @@
-import { WhitelistError, maxApplicationsPerPage } from '../../../commands/minecraft/whitelist/constants/database';
-import DEFAULT_LOG_COMMENTS from '../../../commands/minecraft/whitelist/constants/logComments';
-import { Statuses, User, UserLogAction, UserModel } from '../../../models/user';
+import { WhitelistError, maxApplicationsPerPage } from '../constants/database';
+import DEFAULT_LOG_COMMENTS from '../constants/logComments';
+import { Statuses, User, UserLogAction, UserModel, userStatuses } from '../../../../models/user';
 
 export type dbFnReturn = Promise<User | null | WhitelistError>;
 
@@ -45,6 +45,7 @@ export async function updateApplicationStatus(
     try {
         const userToUpdate = await getSingleDBUser(discordOrMinecraft, searchStatus);
         if (userToUpdate === null || userToUpdate instanceof WhitelistError) return userToUpdate;
+        if (userToUpdate.status === setStatus) return new WhitelistError('databaseSameStatus', setStatus);
 
         userToUpdate.log.push(logAddition);
         userToUpdate.status = setStatus;
@@ -61,11 +62,11 @@ export async function updateApplicationStatus(
 export async function makeNewApplication(
     minecraft: string,
     discord: string,
-    doneBy?: string,
+    doneBy: string,
     comment?: string
 ): Promise<User | WhitelistError> {
     try {
-        const newLog = makeLogItem(doneBy || discord, 'pending', comment);
+        const newLog = makeLogItem(doneBy, 'pending', comment);
         const newUser: User = {
             minecraftLowercase: minecraft.toLowerCase(),
             minecraft,
@@ -73,6 +74,32 @@ export async function makeNewApplication(
             applied: new Date().toISOString(),
             status: 'pending',
             log: [newLog],
+        };
+
+        await UserModel.create(newUser);
+        return newUser;
+    } catch (error) {
+        console.log(error);
+        return new WhitelistError('databaseWrite', error);
+    }
+}
+
+/** Makes a new database entry from already existing data only. */
+export async function makeCustomApplication(
+    minecraft: string,
+    discord: string,
+    applied: string,
+    status: Statuses,
+    log: UserLogAction[]
+) {
+    try {
+        const newUser: User = {
+            minecraftLowercase: minecraft.toLowerCase(),
+            minecraft,
+            discord,
+            applied,
+            status,
+            log,
         };
 
         await UserModel.create(newUser);
@@ -120,20 +147,44 @@ export async function searchApplications({
         // default 20 per page
         const startIndex = ((page ?? 1) - 1) * maxApplicationsPerPage;
         let total: number;
-        if (!!status) total = await UserModel.countDocuments({ status });
-        else total = await UserModel.countDocuments();
-
         let applications: User[];
+
         if (!!status) {
+            total = await UserModel.countDocuments({ status });
             applications = await UserModel.find({ status })
                 .sort({ applied: 'asc' })
                 .limit(maxApplicationsPerPage)
                 .skip(startIndex);
         } else {
+            total = await UserModel.countDocuments();
             applications = await UserModel.find().sort({ applied: 'asc' }).limit(maxApplicationsPerPage).skip(startIndex);
         }
 
         return { applications, total };
+    } catch (error) {
+        console.log(error);
+        return new WhitelistError('databaseRead', error);
+    }
+}
+
+export type ApplicationStats = [Statuses, number][];
+/** Returns number of applications of each status type */
+export async function getStats(): Promise<WhitelistError | ApplicationStats> {
+    try {
+        const promiseArray = [];
+        for (const status of userStatuses) {
+            const willDo = async (): Promise<[Statuses, number]> => {
+                const num = (await await UserModel.countDocuments({ status })) ?? 0;
+                return [status, num];
+            };
+            promiseArray.push(willDo);
+        }
+        const output: ApplicationStats = [];
+        const keyValuePairs = await Promise.all([...promiseArray.map((e) => e())]);
+        for (const [key, value] of keyValuePairs) {
+            output.push([key, value]);
+        }
+        return output;
     } catch (error) {
         console.log(error);
         return new WhitelistError('databaseRead', error);

@@ -1,24 +1,21 @@
-import { Message, TextChannel } from 'discord.js';
+import { Message } from 'discord.js';
 import { Command, DiscordClient } from '../../../../interfaces/Command';
-import { makeLogItem, updateApplicationStatus } from '../../../../modules/minecraft/whitelist/databaseTools';
-import { searchTypeAndTerm } from '../../../../modules/minecraft/whitelist/username';
+import { makeLogItem, updateApplicationStatus } from '../helpers/databaseTools';
+import { searchTypeAndTerm } from '../helpers/username';
 import { WhitelistError } from '../constants/database';
-import { devMode, modules } from '../../../../config.json';
-import DENIED_MESSAGES from '../constants/deniedMessages';
-import moment from 'moment';
+import { DENIED_MESSAGES, OUTPUT_MESSAGES } from '../constants/messages';
 import minecraftServer from '../../../../modules/minecraft/rcon';
-import { WhitelistValidator } from '../../../../modules/minecraft/whitelist/validation';
-
-const notifyAccepted = modules.minecraft.whitelist.sendAcceptedApplications;
-const feedChannel = devMode
-    ? modules.minecraft.whitelist.acceptedRequestFeedChannelDev
-    : modules.minecraft.whitelist.acceptedRequestFeedChannel;
+import { WhitelistValidator } from '../helpers/validation';
+import { getComment } from '../helpers/flags';
+import { User } from '../../../../models/user';
+import { createNotification } from '../helpers/notification';
 
 class Accept implements Command {
     public name = 'accept';
     public aliases = ['a'];
 
-    private reasonFlag = 'r';
+    public adminOnly = true;
+    public description = 'Accepts an application.';
 
     public async execute({
         args,
@@ -40,7 +37,6 @@ class Accept implements Command {
             message.channel.send(WhitelistValidator.message());
             return;
         }
-        args.splice(0, 1);
 
         if (!args.length) {
             DENIED_MESSAGES.NOT_SPECIFIED_USER(message);
@@ -54,12 +50,12 @@ class Accept implements Command {
             return;
         }
 
-        const reason = this.getReason(message, args);
-        if (reason === false) return;
+        const comment = getComment(message, args, isAdmin, undefined);
+        if (comment === false) return;
 
-        const newUserLog = makeLogItem(message.author.id, 'accepted', reason);
+        const newUserLog = makeLogItem(message.author.id, 'accepted', comment);
 
-        const acceptedUser = await updateApplicationStatus(searchTerm, newUserLog, 'accepted', 'pending');
+        const acceptedUser = await updateApplicationStatus(searchTerm, newUserLog, 'accepted', undefined);
 
         if (acceptedUser instanceof WhitelistError) {
             message.channel.send(acceptedUser.message);
@@ -67,7 +63,7 @@ class Accept implements Command {
         }
 
         if (!acceptedUser) {
-            DENIED_MESSAGES.NOT_FOUND(message, searchType, searchTerm, 'pending');
+            OUTPUT_MESSAGES.NOT_FOUND(message, searchType, searchTerm, undefined);
             return;
         }
 
@@ -76,41 +72,27 @@ class Accept implements Command {
             case 'ERROR':
             case 'Not connected':
             case 'That player does not exist':
-                message.channel.send(`${doWhitelist}, this should never happen, please contact <@240312568273436674>`);
-                break;
+                message.channel.send(`${doWhitelist}, please contact <@240312568273436674>`);
+                this.updateWithError(client, acceptedUser, doWhitelist);
+                return;
             case 'Player is already whitelisted':
-                message.channel.send(`Player was already whitelisted.`);
+                OUTPUT_MESSAGES.ACCEPTED_ALREADY_WHITELISTED(message);
                 break;
             default:
-                message.react('✅');
+                OUTPUT_MESSAGES.WHITELIST_RCON_SUCCESS(message);
         }
 
-        if (notifyAccepted) {
-            const outputChannel = client.channels.cache.get(feedChannel) as TextChannel | undefined;
-
-            if (!!outputChannel) {
-                // TODO: move this to its own module, and message constant for this
-                message.channel.send(
-                    `${acceptedUser.minecraft} (<@${acceptedUser.discord}>) has been added to the whitelist by <@${
-                        message.author.id
-                    }> after ${moment(acceptedUser.applied).fromNow(true)}.`
-                );
-            }
-        }
+        createNotification(client, 'accepted', acceptedUser, message.author.id, comment);
     }
 
-    /** Gets the reason specified if applicable, or `false` if invalid. */
-    private getReason(message: Message, args: string[]) {
-        const attemptedReason = args.indexOf(this.reasonFlag) + 1;
-        if (!attemptedReason) return;
-        if (!args[attemptedReason]) {
-            DENIED_MESSAGES.NOT_SPECIFIED_REASON(message);
-            return false;
-        }
-
-        return args.slice(attemptedReason).join(' ');
+    private async updateWithError(client: DiscordClient, user: User, errorMessage: string) {
+        const errorLog = makeLogItem(
+            client.user?.id as string,
+            'pending',
+            `Error occurred on whitelist attempt: ${errorMessage}`
+        );
+        updateApplicationStatus(user.discord, errorLog, 'pending');
     }
 }
 
 export const accept = new Accept();
-// TODO: allow accepting of any account status, not just pending

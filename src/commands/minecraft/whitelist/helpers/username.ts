@@ -1,7 +1,7 @@
-import { tagsUser, stripTagDecorations, discordIdTest } from '../../mentionFilter';
-import minecraftServer from '../rcon';
+import { tagsUser, stripTagDecorations, discordIdTest } from '../../../../modules/mentionFilter';
+import minecraftServer from '../../../../modules/minecraft/rcon';
 
-const invalidUsernameChars = new RegExp(/[^a-zA-Z0-9_]/g);
+const invalidUsernameChars = new RegExp(/[^a-zA-Z0-9_]/);
 
 /** Returns `true` if the username is a valid Minecraft username (case insensitive), `false` otherwise. */
 export function isValidUsername(username: string): boolean {

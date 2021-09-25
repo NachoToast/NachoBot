@@ -4,6 +4,17 @@ import { modules, disableAllModules } from '../config.json';
 import { Command, DiscordClient } from '../interfaces/Command';
 import intents from '../modules/intents';
 
+const subFolder = __dirname.split(/[/\\]/).slice(-2, -1)[0]; // 'src' or 'build'
+
+try {
+    fs.mkdirSync('logs');
+} catch (error) {
+    if (!(error instanceof Error && error.message.includes('EEXIST'))) {
+        console.log(error);
+        process.exit();
+    }
+}
+
 interface StringIndexedObject {
     [index: string]: any;
 }
@@ -268,7 +279,6 @@ class Module {
             return;
         }
 
-        const subFolder = __dirname.split('\\').slice(-2, -1)[0]; // 'src' or 'build'
         fs.writeFileSync(logFile, `[${new Date().toLocaleTimeString()}] Scanning config for enabled command modules...`);
 
         // registering

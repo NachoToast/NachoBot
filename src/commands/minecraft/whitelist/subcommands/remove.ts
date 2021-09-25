@@ -1,15 +1,25 @@
 import { Message } from 'discord.js';
-import { Command } from '../../../../interfaces/Command';
-import { clearApplication } from '../../../../modules/minecraft/whitelist/databaseTools';
-import { WhitelistValidator } from '../../../../modules/minecraft/whitelist/validation';
+import { Command, DiscordClient } from '../../../../interfaces/Command';
+import { clearApplication } from '../helpers/databaseTools';
+import { isInServer, WhitelistValidator } from '../helpers/validation';
 import { WhitelistError } from '../constants/database';
-import DENIED_MESSAGES from '../constants/deniedMessages';
+import { DENIED_MESSAGES, OUTPUT_MESSAGES } from '../constants/messages';
+import { createNotification } from '../helpers/notification';
 
 class Remove implements Command {
     public name = 'remove';
     public aliases = ['r'];
 
-    public async execute({ message }: { message: Message }) {
+    public adminOnly = false;
+    public description = 'Removes your application.';
+    public extendedDescription = `Removes your own whitelist application, but only if it's pending.`;
+
+    public async execute({ client, message }: { client: DiscordClient; message: Message }) {
+        if (!isInServer(client, message.author.id)) {
+            DENIED_MESSAGES.NOT_IN_SERVER(message);
+            return;
+        }
+
         if (!WhitelistValidator.applicationsOpen) {
             message.channel.send(WhitelistValidator.message());
             return;
@@ -23,11 +33,13 @@ class Remove implements Command {
         }
 
         if (!removedUser) {
-            DENIED_MESSAGES.SELF_NOT_FOUND(message);
+            OUTPUT_MESSAGES.SELF_NOT_FOUND(message, 'pending');
             return;
         }
 
-        message.channel.send(`Successfully removed your application, linked to Minecraft user '${removedUser?.minecraft}'`);
+        OUTPUT_MESSAGES.REMOVED_YOUR_REQUEST(message, removedUser.minecraft);
+
+        createNotification(client, 'removed', removedUser, message.author.id, undefined);
     }
 }
 

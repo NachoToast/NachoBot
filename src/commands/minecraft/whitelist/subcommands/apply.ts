@@ -1,24 +1,19 @@
 import { GuildMember, Message, TextChannel } from 'discord.js';
 import { Command, DiscordClient } from '../../../../interfaces/Command';
-import { discordIdTest, filterMentions, stripTagDecorations, tagsUser } from '../../../../modules/mentionFilter';
-import { getSingleDBUser, makeNewApplication } from '../../../../modules/minecraft/whitelist/databaseTools';
-import { getActualUsername, isValidUsername } from '../../../../modules/minecraft/whitelist/username';
-import { WhitelistValidator } from '../../../../modules/minecraft/whitelist/validation';
+import { discordIdTest, stripTagDecorations, tagsUser } from '../../../../modules/mentionFilter';
+import { getSingleDBUser, makeNewApplication } from '../helpers/databaseTools';
+import { getActualUsername, isValidUsername } from '../helpers/username';
+import { isInServer, WhitelistValidator } from '../helpers/validation';
 import { WhitelistError } from '../constants/database';
-import DENIED_MESSAGES from '../constants/deniedMessages';
-import { devMode, modules } from '../../../../config.json';
-import { newApplicationEmbed } from '../../../../modules/minecraft/whitelist/embedConstructors';
-
-const notifyNew = modules.minecraft.whitelist.sendNewApplications;
-const feedChannel = devMode
-    ? modules.minecraft.whitelist.newRequestFeedChannelDev
-    : modules.minecraft.whitelist.newRequestFeedChannel;
-
+import { DENIED_MESSAGES, OUTPUT_MESSAGES } from '../constants/messages';
+import { createNotification } from '../helpers/notification';
+import { getComment, behalfFlag } from '../helpers/flags';
 class Apply implements Command {
-    public name = 'APPLY'; // uppercase so it's never actually called
+    public name = 'apply';
 
-    private commentFlag = 'c';
-    private onBehalfFlag = 'for';
+    public adminOnly = false;
+    public description = 'Makes a whitelist application.';
+    public extendedDescription = `Explicitly specifying \`apply\` isn't necessary, you can just put your username there instead.\nAdmins may create whitelist applications on behalf of other users using the \`${behalfFlag}\` flag.`;
 
     public async execute({
         args,
@@ -31,6 +26,11 @@ class Apply implements Command {
         isAdmin: boolean;
         message: Message;
     }) {
+        if (!isInServer(client, message.author.id)) {
+            DENIED_MESSAGES.NOT_IN_SERVER(message);
+            return;
+        }
+
         if (!WhitelistValidator.applicationsOpen) {
             message.channel.send(WhitelistValidator.message());
             return;
@@ -41,7 +41,7 @@ class Apply implements Command {
         const applicantDiscord = this.getOnBehalfOf(message, args, isAdmin);
         if (!applicantDiscord) return;
 
-        const comment = this.getComment(message, args, isAdmin);
+        const comment = getComment(message, args, isAdmin, behalfFlag);
         if (comment === false) return;
 
         const minecraftUsername = await this.getVerifiedUsername(message, args[0]);
@@ -57,17 +57,9 @@ class Apply implements Command {
             return;
         }
 
-        message.channel.send(`Successfully submitted a whitelist application linked to user '${submittedUser.minecraft}'.`);
+        OUTPUT_MESSAGES.MADE_NEW_REQUEST(message, minecraftUsername, applicantDiscord.id);
 
-        if (notifyNew) {
-            // TODO: move this to its own module :)
-            const outputChannel = client.channels.cache.get(feedChannel) as TextChannel | undefined;
-
-            if (!!outputChannel) {
-                const embed = newApplicationEmbed(submittedUser, applicantDiscord);
-                outputChannel.send({ embeds: [embed] });
-            }
-        }
+        createNotification(client, 'pending', submittedUser, message.author.id, comment);
     }
 
     /** Returns `true` if the username is invalid, `false` otherwise. */
@@ -86,7 +78,7 @@ class Apply implements Command {
 
     /** Returns the GuildMember who is the subject of the application, or `false` if invalid. */
     private getOnBehalfOf(message: Message, args: string[], isAdmin: boolean) {
-        const attemptedOnBehalf = args.indexOf(this.onBehalfFlag) + 1;
+        const attemptedOnBehalf = args.indexOf(behalfFlag) + 1;
         if (!attemptedOnBehalf) return message.member as GuildMember;
         if (!isAdmin) {
             DENIED_MESSAGES.NO_PERMISSION(message);
@@ -112,7 +104,7 @@ class Apply implements Command {
         const applicantGuildMember = (message.channel as TextChannel).guild.members.cache.get(applicantDiscordID);
 
         if (!applicantGuildMember) {
-            DENIED_MESSAGES.NOT_IN_SERVER(message, applicantDiscordID);
+            DENIED_MESSAGES.TARGET_NOT_IN_SERVER(message, applicantDiscordID);
             return false;
         }
 
@@ -122,33 +114,6 @@ class Apply implements Command {
         }
 
         return applicantGuildMember;
-    }
-
-    /** Gets the comment specified if applicable, or `false` if invalid. */
-    private getComment(message: Message, args: string[], isAdmin: boolean) {
-        const attemptedComment = args.indexOf(this.commentFlag) + 1;
-        if (!attemptedComment) return;
-        if (!isAdmin) {
-            DENIED_MESSAGES.NO_PERMISSION(message);
-            return false;
-        }
-        if (!args[attemptedComment]) {
-            DENIED_MESSAGES.NOT_SPECIFIED_COMMENT(message);
-            return false;
-        }
-
-        const behalfIndex = args.indexOf(this.onBehalfFlag) + 1;
-        if (!behalfIndex) {
-            DENIED_MESSAGES.COMMENT_BUT_NO_BEHALF(message);
-            return false;
-        }
-
-        if (behalfIndex > attemptedComment) {
-            DENIED_MESSAGES.COMMENT_NOT_END_ARG(message);
-            return false;
-        }
-
-        return args.slice(attemptedComment).join(' ');
     }
 
     /** Returns `false` if the username is nonexistant, already whitelisted, or some other error,
@@ -164,7 +129,6 @@ class Apply implements Command {
 
     /** Returns `true` if an entry with that Minecraft username or Discord ID already exists, `false` otherwise. */
     private async applicationAlreadyExists(message: Message, minecraft: string, discord: string) {
-        console.log(minecraft, discord);
         const [existingMC, existingDiscord] = await Promise.all([getSingleDBUser(minecraft), getSingleDBUser(discord)]);
 
         if (existingDiscord instanceof WhitelistError) {

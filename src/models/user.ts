@@ -14,7 +14,16 @@ import { devMode } from '../config.json';
 
 * `vacant` [clear | remove] - slot was taken but is now free // NOT YET IMPLEMENTED OR SUPPORTED
 */
+export const userStatuses: Statuses[] = ['pending', 'accepted', 'rejected', 'frozen', 'banned'];
 export type Statuses = 'pending' | 'accepted' | 'rejected' | 'frozen' | 'banned';
+
+export const statusDescriptions: { [key in Statuses]: string } = {
+    accepted: 'Added onto the whitelist.',
+    banned: 'Removed from the whitelist.',
+    frozen: 'Temporarily removed from whitelist and awaiting further review.',
+    pending: 'Awaiting admin review.',
+    rejected: 'Rejected by an admin.',
+};
 
 export interface UserLogAction {
     doneBy: string; // discord ID (can be bot)
@@ -32,7 +41,7 @@ export interface User {
     log: UserLogAction[];
 }
 
-const userSchema = new mongoose.Schema({
+export const userSchema = new mongoose.Schema({
     minecraft: {
         type: String,
         required: true,

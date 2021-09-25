@@ -9,7 +9,11 @@ import {
     UserFlagsString,
 } from 'discord.js';
 import moment from 'moment';
-import { User, Statuses, UserLogAction } from '../../../models/user';
+import { Command } from '../../../../interfaces/Command';
+import { User, Statuses, UserLogAction, statusDescriptions } from '../../../../models/user';
+import { usages, exampleUses } from '../constants/help';
+import { whitelist } from '../whitelist';
+import { prefixes } from '../../../../config.json';
 
 const colourMap: { [key in Statuses]: HexColorString } = {
     accepted: '#f0dbca',
@@ -19,16 +23,14 @@ const colourMap: { [key in Statuses]: HexColorString } = {
     pending: '#934e6b',
 };
 
-const statusDescriptions: { [key in Statuses]: string } = {
-    accepted: 'Added onto the whitelist.',
-    banned: 'Removed from the whitelist.',
-    frozen: 'Temporarily removed from whitelist and awaiting further review.',
-    pending: 'Awaiting admin review.',
-    rejected: 'Rejected by an admin.',
-};
-
 /** If we can't find the specified users avatar (i.e. no mutual servers), fallback to this one. */
 const fallBackImage = `https://cdn.discordapp.com/attachments/879001616265650207/890908743615799336/mhf_question-png.png`;
+
+/** Profile picture for the bot. */
+const profileImage = `https://cdn.discordapp.com/attachments/879001616265650207/888748564396793876/14.png`;
+
+/** Command block image, for lists and command-specific help thumbnails. */
+const technicalImage = `https://cdn.discordapp.com/attachments/879001616265650207/891185235297992714/Impulse_Command_Block.gif`;
 
 /** Converts Discord profile flags into a nicer format. */
 function convertFlag(flag: UserFlagsString) {
@@ -74,30 +76,9 @@ function addVettingInfo(embed: MessageEmbed, guildUser: GuildMember) {
 
 /** Adds footer, colour, and thumbnail to embed. */
 function staticConstructors(embed: MessageEmbed, user: User, userDiscord?: DiscordUser) {
-    embed.setFooter(
-        `Made ${moment(user.applied).fromNow()}`,
-        'https://cdn.discordapp.com/attachments/879001616265650207/888748564396793876/14.png'
-    );
+    embed.setFooter(`Made ${moment(user.applied).fromNow()}`, profileImage);
     embed.setColor(colourMap[user.status]);
     embed.setThumbnail(userDiscord?.avatarURL() ?? fallBackImage);
-}
-
-/** New application embed: Has advanced profile information. */
-export function newApplicationEmbed(user: User, guildUser: GuildMember) {
-    try {
-        const embed = new MessageEmbed()
-            .setTitle(`New Whitelist Application`)
-            .setDescription(`Minecraft: **${user.minecraft}**\nDiscord: <@${user.discord}>`);
-
-        addVettingInfo(embed, guildUser);
-        staticConstructors(embed, user, guildUser.user);
-        addLogFields(embed, user.log);
-
-        return embed;
-    } catch (error) {
-        console.log(error);
-        return errorEmbed();
-    }
 }
 
 /** Status embed: Has basic profile information. */
@@ -121,11 +102,11 @@ export function applicationStatusEmbed(message: Message, user: User) {
 }
 
 /** Info embed: Has advanced profile information. */
-export function applicationInfoEmbed(message: Message, user: User) {
+export function applicationInfoEmbed(channel: TextChannel, user: User, isNew = false) {
     try {
-        const userDiscord = (message.channel as TextChannel).guild.members.cache.get(user.discord);
+        const userDiscord = channel.guild.members.cache.get(user.discord);
         const embed = new MessageEmbed()
-            .setTitle(`${user.minecraft}'s Application`)
+            .setTitle(`${isNew ? 'New' : `${user.minecraft}'s`} Whitelist Application`)
             .setDescription(
                 `\nStatus: **${user.status[0].toUpperCase() + user.status.slice(1)}**\n${
                     statusDescriptions[user.status]
@@ -148,10 +129,7 @@ export function massStatusEmbed(results: User[], total: number, page: number = 1
     try {
         const embed = new MessageEmbed()
             .setTitle(`Showing ${results.length} of ${total} ${!status ? '' : status[0].toUpperCase() + status.slice(1)} Users`)
-            .setFooter(
-                `Page ${page} of ${Math.ceil(total / perPage)}`,
-                `https://cdn.discordapp.com/attachments/879001616265650207/890910447979610132/latest.png`
-            )
+            .setFooter(`Page ${page} of ${Math.ceil(total / perPage)}`, profileImage)
             .setColor(!status ? '#f0dbca' : colourMap[status]);
 
         const description: string[] = [];
@@ -164,6 +142,81 @@ export function massStatusEmbed(results: User[], total: number, page: number = 1
         }
 
         embed.setDescription(description.join('\n'));
+
+        return embed;
+    } catch (error) {
+        console.log(error);
+        return errorEmbed();
+    }
+}
+
+/** Command list embed, has separate basic and admin sections. */
+export function commandListEmbed() {
+    try {
+        const normalCommands = whitelist.commands
+            .filter((e) => !e?.adminOnly)
+            .map((e) => `${e.name.toLowerCase()} - *${e?.description ?? 'No description found.'}*`); // apply command is upper case
+        const adminCommands = whitelist.commands
+            .filter((e) => !!e?.adminOnly)
+            .map((e) => `${e.name} - *${e?.description ?? 'No description found.'}*`);
+
+        const embed = new MessageEmbed()
+            .setTitle(`Whitelist-Related Commands (${normalCommands.length + adminCommands.length})`)
+            .setThumbnail(profileImage)
+            .setColor('#4275be')
+            .setDescription(
+                `For command-specific help, use \`neko help whitelist <command name>\`, e.g. \`neko whitelist help apply\``
+            )
+            .addFields(
+                { name: `Normal Commands (${normalCommands.length})`, value: normalCommands.join('\n') },
+                { name: `Admin Commands (${adminCommands.length})`, value: adminCommands.join('\n') }
+            );
+        return embed;
+    } catch (error) {
+        return errorEmbed();
+    }
+}
+
+/** Command help embed, gives detailed help about a single command. */
+export function commandHelpEmbed(command: Command) {
+    try {
+        const disabled = !!command.disabled ? `\nThis command has been specifically disabled.` : ``;
+
+        const syntaxExamples = [];
+
+        if (!!usages[command.name]?.length) {
+            for (const syntax of usages[command.name]) {
+                syntaxExamples.push(`${prefixes[0]} whitelist ${command.name} ${syntax}`);
+            }
+        }
+        const usageExamples = [];
+        if (!!exampleUses[command.name]?.length) {
+            for (const usage of exampleUses[command.name]) {
+                usageExamples.push(`${prefixes[0]} ${usage}`);
+            }
+        }
+
+        const embed = new MessageEmbed()
+            .setTitle(`Whitelist "${command.name[0].toUpperCase() + command.name.slice(1)}" Command`)
+            .setColor('#4275be')
+            .setThumbnail(technicalImage)
+            .setDescription(
+                `${command?.description ?? 'No description found.'}${
+                    command?.extendedDescription ? `\n${command?.extendedDescription}` : ''
+                }${disabled}`
+            )
+            .addFields(
+                { name: 'Command Syntax:', value: !!syntaxExamples.length ? syntaxExamples.join('\n') : 'None Found' },
+                { name: 'Example Uses:', value: !!usageExamples.length ? usageExamples.join('\n') : 'None Found' }
+            )
+            .setFooter(
+                !!command?.adminOnly ? 'This command is an admin-only command.' : 'Arguments in bold are admin-only.',
+                profileImage
+            );
+
+        if (!!command.aliases?.length) {
+            embed.addField(`Aliases: (${command.aliases.length})`, `\`${command.aliases.join('`, `')}\``);
+        }
 
         return embed;
     } catch (error) {

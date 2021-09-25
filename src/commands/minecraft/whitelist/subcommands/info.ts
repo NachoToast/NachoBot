@@ -1,21 +1,24 @@
-import { Message } from 'discord.js';
+import { Message, TextChannel } from 'discord.js';
 import { Command } from '../../../../interfaces/Command';
-import { getSingleDBUser } from '../../../../modules/minecraft/whitelist/databaseTools';
-import { applicationInfoEmbed } from '../../../../modules/minecraft/whitelist/embedConstructors';
-import { searchTypeAndTerm } from '../../../../modules/minecraft/whitelist/username';
+import { getSingleDBUser } from '../helpers/databaseTools';
+import { applicationInfoEmbed } from '../helpers/embedConstructors';
+import { searchTypeAndTerm } from '../helpers/username';
 import { WhitelistError } from '../constants/database';
-import DENIED_MESSAGES from '../constants/deniedMessages';
+import { DENIED_MESSAGES, OUTPUT_MESSAGES } from '../constants/messages';
 
 class Info implements Command {
     public name = 'info';
     public aliases = ['i'];
+
+    public adminOnly = true;
+    public description =
+        'Shows all information about an application/user. If none is specified will show info about your own request.';
 
     public async execute({ args, isAdmin, message }: { args: string[]; isAdmin: boolean; message: Message }) {
         if (!isAdmin) {
             DENIED_MESSAGES.NO_PERMISSION(message);
             return;
         }
-        args.splice(0, 1);
 
         const [searchType, searchTerm] = searchTypeAndTerm(args[0] ?? message.author.id);
 
@@ -32,11 +35,15 @@ class Info implements Command {
         }
 
         if (!existingUser) {
-            DENIED_MESSAGES.NOT_FOUND(message, searchType, searchTerm, undefined);
+            if (searchTerm === message.author.id) {
+                OUTPUT_MESSAGES.SELF_NOT_FOUND(message, undefined);
+            } else {
+                OUTPUT_MESSAGES.NOT_FOUND(message, searchType, searchTerm, undefined);
+            }
             return;
         }
 
-        message.channel.send({ embeds: [applicationInfoEmbed(message, existingUser)] });
+        message.channel.send({ embeds: [applicationInfoEmbed(message.channel as TextChannel, existingUser, false)] });
     }
 }
 

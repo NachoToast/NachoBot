@@ -1,5 +1,5 @@
-import { isAllowed } from '../../../modules/minecraft/whitelist/validation';
-import { Command, CommandWithHelp, Params } from '../../../interfaces/Command';
+import { isAllowed } from './helpers/validation';
+import { Command, Params } from '../../../interfaces/Command';
 
 import { modules } from '../../../config.json';
 if (!modules.minecraft.rcon.enabled) {
@@ -7,12 +7,9 @@ if (!modules.minecraft.rcon.enabled) {
 }
 
 import minecraftServer from '../../../modules/minecraft/rcon';
-
 import loadSubCommands from '../../../helpers/commandModuleHelper';
-import { filterMentions } from '../../../modules/mentionFilter';
 
 // subcommand importing
-import { help } from './subcommands/help';
 import { apply } from './subcommands/apply';
 import { remove } from './subcommands/remove';
 import { status } from './subcommands/status';
@@ -22,10 +19,15 @@ import { list } from './subcommands/list';
 import { clear } from './subcommands/clear';
 import { accept } from './subcommands/accept';
 import { reject } from './subcommands/reject';
+import { DENIED_MESSAGES } from './constants/messages';
+import { freeze } from './subcommands/freeze';
+import { ban } from './subcommands/ban';
+import { stats } from './subcommands/stats';
+import { listCommands } from './subcommands/listCommands';
+import { commandHelpEmbed } from './helpers/embedConstructors';
 
 const [whitelistCommands, whitelistCommandAliases] = loadSubCommands([
     apply,
-    // help,
     remove,
     status,
     suspend,
@@ -34,6 +36,11 @@ const [whitelistCommands, whitelistCommandAliases] = loadSubCommands([
     clear,
     accept,
     reject,
+    freeze,
+    ban,
+    stats,
+    listCommands,
+    // migrate,
 ]);
 
 class Whitelist implements Command {
@@ -43,49 +50,68 @@ class Whitelist implements Command {
     public commandAliases = whitelistCommandAliases;
     public numSubCommands = this.commands.size;
 
-    public async execute(params: Params, helpMode = false) {
-        if (!minecraftServer.isConnected() && !helpMode) {
-            params.message.channel.send(`Could not connect to Minecraft server, please try again later.`);
+    public async execute(params: Params) {
+        if (!minecraftServer.isConnected()) {
+            DENIED_MESSAGES.NO_CONNECTION(params.message);
             return;
         }
+
         if (params.message.channel.type !== 'GUILD_TEXT') {
             // make sure its a GuildTextChannel, otherwise might not be able to access GuildMembers from cache later on
-            params.message.channel.send(`Whitelist-related commands only work in server text channels.`);
+            DENIED_MESSAGES.NOT_GUILD_CHANNEL(params.message);
             return;
         }
 
-        const foundCommand = !!params.args.length
-            ? this.commands.get(params.args[0].toLowerCase()) ??
-              this.commands.get(this.commandAliases[params.args[0].toLowerCase()])
-            : undefined;
+        let foundCommand: Command;
+        if (!params.args.length) {
+            foundCommand = this.commands.get('apply') as Command;
+        } else {
+            const directlyNamed = this.commands.get(params.args[0].toLowerCase());
+            if (!!directlyNamed) {
+                foundCommand = directlyNamed;
+                params.args.splice(0, 1);
+            } else {
+                const indirectlyNamed = this.commands.get(this.commandAliases[params.args[0].toLowerCase()]);
+                if (!!indirectlyNamed) {
+                    foundCommand = indirectlyNamed;
+                    params.args.splice(0, 1);
+                } else {
+                    const searchTerm = params.args[0].toLowerCase();
+                    if (searchTerm === 'h' || searchTerm === 'help') {
+                        foundCommand = this.commands.get('listcommands') as Command;
+                        params.args.splice(0, 1); // not necessary but might as well
+                    } else {
+                        foundCommand = this.commands.get('apply') as Command;
+                    }
+                }
+            }
+        }
 
         const isAdmin = isAllowed(params.message);
-
         const fullParams = { ...params, isAdmin };
-        if (!foundCommand) {
-            if (!!params.args.length && helpMode) {
-                // e.g. neko help whitelist a_nonexistant_arg
-                params.message.channel.send(`Subcommand '${filterMentions(params.args[0])}' does not exist.`);
-            } else if (helpMode) {
-                // e.g. neko help whitelist
-                // (this.commands.get('help') as CommandWithHelp).help(fullParams);
-            } else {
-                // e.g. neko whitelist
-                this.commands.get('APPLY')?.execute(fullParams);
-            }
-            return;
-        }
 
-        if (!helpMode) foundCommand.execute(fullParams);
-        else {
-            if (!!foundCommand?.help) foundCommand.help(fullParams);
-            else params.message.channel.send(`No help found for '${foundCommand.name}' subcommand.`);
-        }
+        foundCommand.execute(fullParams);
     }
 
     public async help(params: Params) {
         params.args.splice(0, 1);
-        this.execute(params, true);
+
+        let foundCommand: Command | undefined;
+        if (!params.args.length) {
+            foundCommand = this.commands.get('apply');
+        } else {
+            foundCommand =
+                this.commands.get(params.args[0].toLowerCase()) ??
+                this.commands.get(this.commandAliases[params.args[0].toLowerCase()]) ??
+                undefined;
+        }
+
+        if (!foundCommand) {
+            DENIED_MESSAGES.SUBCOMMAND_NONEXISTANT(params.message, params.args[0]);
+            return;
+        }
+
+        params.message.channel.send({ embeds: [commandHelpEmbed(foundCommand)] });
     }
 }
 

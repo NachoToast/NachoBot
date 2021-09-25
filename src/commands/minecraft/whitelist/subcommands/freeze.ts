@@ -9,12 +9,13 @@ import { getComment } from '../helpers/flags';
 import { createNotification } from '../helpers/notification';
 import { searchTypeAndTerm } from '../helpers/username';
 
-class Ban implements Command {
-    public name = 'ban';
-    public aliases = ['b'];
+class Freeze implements Command {
+    public name = 'freeze';
+    public aliases = ['f'];
 
     public adminOnly = true;
-    public description = 'Bans a user from the Minecraft server.';
+    public description = 'Freezes an application.';
+    public extendedDescription = `Removes the user from the whitelist and puts their application in a frozen state.`;
 
     public async execute({
         args,
@@ -49,57 +50,56 @@ class Ban implements Command {
         const comment = getComment(message, args, isAdmin, undefined);
         if (comment === false) return;
 
-        const bannedUserLog = makeLogItem(message.author.id, 'banned', comment);
+        const frozenUserLog = makeLogItem(message.author.id, 'frozen', comment);
 
-        const bannedUser = await updateApplicationStatus(searchTerm, bannedUserLog, 'banned', 'accepted');
+        const frozenUser = await updateApplicationStatus(searchTerm, frozenUserLog, 'frozen', undefined);
 
-        if (bannedUser instanceof WhitelistError) {
-            message.channel.send(bannedUser.message);
+        if (frozenUser instanceof WhitelistError) {
+            message.channel.send(frozenUser.message);
             return;
         }
 
-        if (!bannedUser) {
-            OUTPUT_MESSAGES.NOT_FOUND(message, searchType, searchTerm, 'accepted');
+        if (!frozenUser) {
+            OUTPUT_MESSAGES.NOT_FOUND(message, searchType, searchTerm, undefined);
             return;
         }
 
-        const unWhitelist = await minecraftServer.executeCommand(`whitelist remove ${bannedUser.minecraft}`);
+        const unWhitelist = await minecraftServer.executeCommand(`whitelist remove ${frozenUser.minecraft}`);
 
         switch (unWhitelist) {
             case 'ERROR':
             case 'Not connected':
             case 'That player does not exist':
                 message.channel.send(`${unWhitelist}, please contact <@240312568273436674>`);
-                this.updateWithError(client, bannedUser, unWhitelist);
+                this.updateWithError(client, frozenUser, unWhitelist);
                 return;
             case 'Player is not whitelisted':
                 OUTPUT_MESSAGES.FROZEN_NOT_WHITELISTED(message);
                 break;
             default:
-                await minecraftServer.executeCommand(
-                    `kick ${bannedUser.minecraft} You have been banned by ${message.author.username}: ${bannedUserLog.comment}.`
+                const doKick = await minecraftServer.executeCommand(
+                    `kick ${frozenUser.minecraft} Your application has been frozen temporarily.`
                 );
-                const doBan = await minecraftServer.executeCommand(`ban ${bannedUser.minecraft}`);
-                switch (doBan) {
+                switch (doKick) {
                     case 'ERROR':
                     case 'Not connected':
-                        message.channel.send(`${doBan}, please contact <@240312568273436674>`);
-                        this.updateWithError(client, bannedUser, doBan);
+                        message.channel.send(`${doKick}, please contact <@240312568273436674>`);
+                        this.updateWithError(client, frozenUser, doKick);
                         return;
                     default:
                         break;
                 }
         }
 
-        OUTPUT_MESSAGES.BANNED_USER(message, bannedUser.discord, bannedUser.minecraft);
+        OUTPUT_MESSAGES.FROZE_REQUEST(message, frozenUser.discord, frozenUser.minecraft);
 
-        createNotification(client, 'banned', bannedUser, message.author.id, comment);
+        createNotification(client, 'frozen', frozenUser, message.author.id, comment);
     }
 
     private async updateWithError(client: DiscordClient, user: User, errorMessage: string) {
-        const errorLog = makeLogItem(client.user?.id as string, 'pending', `Error occurred on ban attempt: ${errorMessage}`);
+        const errorLog = makeLogItem(client.user?.id as string, 'pending', `Error occurred on freeze attempt: ${errorMessage}`);
         updateApplicationStatus(user.discord, errorLog, 'pending');
     }
 }
 
-export const ban = new Ban();
+export const freeze = new Freeze();

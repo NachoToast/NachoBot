@@ -6,7 +6,7 @@ export const ping: Command = {
     aliases: ['p'],
     execute: async ({ client, message, args }: { client: DiscordClient; message: Message; args: string[] }) => {
         if (args.includes('mc')) {
-            // mc related ping
+            // TODO: mc related ping
         }
 
         let response = `Pongers! (${Math.abs(Date.now() - message.createdTimestamp)}ms)`;

@@ -1,17 +1,17 @@
-import { Message, TextChannel } from 'discord.js';
+import { Message } from 'discord.js';
 import { Command, DiscordClient } from '../../../../interfaces/Command';
-import { filterMentions } from '../../../../modules/mentionFilter';
-import { WhitelistValidator } from '../../../../modules/minecraft/whitelist/validation';
-import DENIED_MESSAGES from '../constants/deniedMessages';
-import { devMode, modules } from '../../../../config.json';
-
-const notifyAccepted = modules.minecraft.whitelist.sendAcceptedApplications;
-const feedChannel = devMode
-    ? modules.minecraft.whitelist.acceptedRequestFeedChannelDev
-    : modules.minecraft.whitelist.acceptedRequestFeedChannel;
+import { WhitelistValidator } from '../helpers/validation';
+import { DENIED_MESSAGES } from '../constants/messages';
+import { createNotification } from '../helpers/notification';
+import { getComment } from '../helpers/flags';
 
 class Suspend implements Command {
     public name = 'suspend';
+    public aliases = ['sus'];
+
+    public adminOnly = false;
+    public description = 'Returns application suspension status';
+    public extendedDescription = `Will query unless **on** or **off** arguments are specified. Suspending applications stops new applications being made, and current applications from being accepted, rejected, removed, and cleared.`;
 
     public async execute({
         args,
@@ -24,7 +24,6 @@ class Suspend implements Command {
         isAdmin: boolean;
         message: Message;
     }) {
-        args.splice(0, 1);
         if (!args.length) {
             message.channel.send(WhitelistValidator.message());
             return;
@@ -34,6 +33,9 @@ class Suspend implements Command {
             DENIED_MESSAGES.NO_PERMISSION(message);
             return;
         }
+
+        const comment = getComment(message, args.slice(1), isAdmin, undefined);
+        if (comment === false) return;
 
         if (args[0].toLowerCase() === 'on') {
             if (!WhitelistValidator.applicationsOpen) {
@@ -48,17 +50,11 @@ class Suspend implements Command {
             }
             WhitelistValidator.applicationsOpen = true;
         } else {
-            message.channel.send(`Unrecognized argument, '${filterMentions(args[0])}'`);
+            DENIED_MESSAGES.UNRECOGNIZED_SUSPEND_ARG(message, args[0]);
             return;
         }
 
-        if (notifyAccepted) {
-            const outputChannel = client.channels.cache.get(feedChannel) as TextChannel | undefined;
-
-            if (!!outputChannel) {
-                message.channel.send(WhitelistValidator.message());
-            }
-        }
+        createNotification(client, 'suspend', null, message.author.id, comment);
     }
 }
 

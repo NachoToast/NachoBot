@@ -1,16 +1,28 @@
 import { Message } from 'discord.js';
 import { Command } from '../../../../interfaces/Command';
-import { getSingleDBUser } from '../../../../modules/minecraft/whitelist/databaseTools';
-import { applicationStatusEmbed } from '../../../../modules/minecraft/whitelist/embedConstructors';
+import { getSingleDBUser } from '../helpers/databaseTools';
+import { applicationStatusEmbed } from '../helpers/embedConstructors';
 import { WhitelistError } from '../constants/database';
-import DENIED_MESSAGES from '../constants/deniedMessages';
+import { DENIED_MESSAGES, OUTPUT_MESSAGES } from '../constants/messages';
+import { searchTypeAndTerm } from '../helpers/username';
 
 class Status implements Command {
     public name = 'status';
     public aliases = ['s'];
 
-    public async execute({ message }: { message: Message }) {
-        const existingUser = await getSingleDBUser(message.author.id);
+    public adminOnly = false;
+    public description = 'See your application.';
+    public extendedDescription = `Shows the basic application info of the user specified, or your own application if nothing is specified.`;
+
+    public async execute({ args, message }: { args: string[]; message: Message }) {
+        const [searchType, searchTerm] = searchTypeAndTerm(args[0] ?? message.author.id);
+
+        if (searchType === 'invalid') {
+            DENIED_MESSAGES.INVALID_EITHER(message, args[0]);
+            return;
+        }
+
+        const existingUser = await getSingleDBUser(searchTerm);
 
         if (existingUser instanceof WhitelistError) {
             message.channel.send(existingUser.message);
@@ -18,7 +30,11 @@ class Status implements Command {
         }
 
         if (!existingUser) {
-            DENIED_MESSAGES.SELF_NOT_FOUND(message);
+            if (searchTerm === message.author.id) {
+                OUTPUT_MESSAGES.SELF_NOT_FOUND(message, undefined);
+            } else {
+                OUTPUT_MESSAGES.NOT_FOUND(message, searchType, searchTerm, undefined);
+            }
             return;
         }
 
