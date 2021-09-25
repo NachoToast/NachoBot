@@ -1,28 +1,37 @@
-export default interface Command {
-    help: Function;
-    execute: Function;
-    disabled?: boolean;
-    name?: string;
-    aliases?: string[];
+import { Client, Message, Collection } from 'discord.js';
+
+export interface StringIndexed {
+    [index: string]: string;
 }
 
-export interface CommandRouter extends Command {
+export interface RouterCommands {
+    [name: string]: Command;
+}
+
+export type CommandCollection = Collection<string, Command>;
+export interface Command {
     name: string;
     aliases?: string[];
-    subCommands: Number;
-    help: Function;
     execute: Function;
+    help?: Function;
     disabled?: boolean;
+    numSubCommands?: number | undefined;
+    commands?: CommandCollection;
+    commandAliases?: StringIndexed;
+    [any: string]: any;
 }
 
-interface Params {
+export interface CommandWithHelp extends Command {
+    help: Function;
+}
+
+export interface Params {
     client: Client;
     message: Message;
-    rcon: Rcon;
     args: string[];
 }
 
-import { Client, Message } from 'discord.js';
-import { Rcon } from 'rcon-client';
-
-export { Client, Command, Message, Rcon, Params };
+export interface DiscordClient extends Client {
+    commands: Collection<string, Command>;
+    commandAliases: StringIndexed;
+}
