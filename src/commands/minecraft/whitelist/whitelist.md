@@ -20,6 +20,7 @@ This whitelist submodule provides a way to whitelist members on a remote Minecra
         -   ✅ with comments
 -   ✅ freeze
 -   ✅ ban
+    -   ✅ unban
 -   ✅ list
 -   ✅ clear
 -   ✅ info (like status but with vetting info)
