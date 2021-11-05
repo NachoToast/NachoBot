@@ -63,6 +63,8 @@ export const OUTPUT_MESSAGES = {
         message.channel.send(`Successfully froze application by <@${discord}>, linked to Minecraft user '${minecraft}'`),
     BANNED_USER: (message: Message, discord: string, minecraft: string) =>
         message.channel.send(`Successfully banned <@${discord}>, linked to Minecraft user '${minecraft}'`),
+    UNBANNED_USER: (message: Message, discord: string, minecraft: string) =>
+        message.channel.send(`Successfully unbanned <@${discord}>, linked to Minecraft user '${minecraft}'`),
     MINECRAFT_NOT_FOUND: (message: Message, minecraft: string) =>
         message.channel.send(`Couldn't find any applications linked to Minecraft user '${minecraft}'`),
     DISCORD_NOT_FOUND: (message: Message, discord: string) =>

@@ -22,6 +22,7 @@ import { reject } from './subcommands/reject';
 import { DENIED_MESSAGES } from './constants/messages';
 import { freeze } from './subcommands/freeze';
 import { ban } from './subcommands/ban';
+import { unban } from './subcommands/unban';
 import { stats } from './subcommands/stats';
 import { listCommands } from './subcommands/listCommands';
 import { commandHelpEmbed } from './helpers/embedConstructors';
@@ -40,6 +41,7 @@ const [whitelistCommands, whitelistCommandAliases] = loadSubCommands([
     ban,
     stats,
     listCommands,
+    unban,
     // migrate,
 ]);
 

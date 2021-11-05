@@ -16,7 +16,7 @@ const privateChannel = devMode ? WHITELIST_SETTINGS.privateChannelDev : WHITELIS
 /** Creates a relevant notification in its channel (specified in `config.json`) if enabled. */
 export function createNotification(
     client: DiscordClient,
-    type: ExtendedStatuses,
+    type: ExtendedStatuses | 'unbanned',
     user: User | null,
     doneBy: string,
     comment: string | undefined
@@ -49,7 +49,7 @@ type NotificationActionFunction = (
     comment: string | undefined,
     channel: TextChannel
 ) => string | MessageEmbed;
-const notificationActionMap: { [key in ExtendedStatuses]: NotificationActionFunction } = {
+const notificationActionMap: { [key in ExtendedStatuses | 'unbanned']: NotificationActionFunction } = {
     accepted: (user, doneBy, comment) =>
         `${user.minecraft} (<@${user.discord}>) has been added to the whitelist by <@${doneBy}> after ${moment(
             user.applied
@@ -76,4 +76,8 @@ const notificationActionMap: { [key in ExtendedStatuses]: NotificationActionFunc
         `Whitelist applications have been **${WhitelistValidator.applicationsOpen ? 'resumed' : 'suspended'}** by <@${doneBy}>${
             !!comment ? ` with comment: *${comment}*.` : ''
         }`,
+    unbanned: (user, doneBy, comment) =>
+        `${user.minecraft} (<@${user.discord}>) has been unbanned by <@${doneBy}> after ${moment(
+            user.log.slice(-1)[0].timestamp
+        ).fromNow(true)}.`,
 };
