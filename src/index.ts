@@ -26,7 +26,7 @@ client.on('messageCreate', async (message: Message) => {
     if (config.devMode !== inDevServer) return;
     const [prefix, command, ...args] = message.content.split(' ');
     // const [prefix, command, ...args] = message.content.split(onNonQuotedWhitespace);
-    if (config.prefixes.indexOf(prefix) == -1) return;
+    if (config.prefixes.indexOf(prefix.toLowerCase()) == -1) return;
 
     if (!command) {
         if (config.devMode) message.channel.send(`what?`);

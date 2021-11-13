@@ -1,5 +1,5 @@
 {
-    "name": "mcserverbot",
+    "name": "nachobot",
     "version": "1.0.0",
     "description": "",
     "main": "./build/index.js",
@@ -7,7 +7,8 @@
         "test": "echo \"Error: no test specified\" && exit 1",
         "start": "node .",
         "build": "tsc",
-        "dev": "nodemon ./src/index.ts"
+        "dev": "nodemon ./src/index.ts",
+        "typecheck": "tsc --noEmit"
     },
     "keywords": [],
     "author": "",
