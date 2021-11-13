@@ -5,7 +5,6 @@
     "devServers": ["795106209946402837"],
     "prefixes": ["neko", "mc", "nachobot", "nacho", "nachiii", "nachi", "<@!845829005805617193>", "<@!845641194188308490>"],
     "disableAllModules": false,
-    "silentModuleLoad": false, // TODO: get rid of this
     "modules": {
         "minecraft": {
             "enabled": true,
